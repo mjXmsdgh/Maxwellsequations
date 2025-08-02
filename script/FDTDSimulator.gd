@@ -6,9 +6,9 @@ const GRID_HEIGHT = 512 # グリッドの高さ
 
 # FDTD法で使用する物理量を格納する配列
 # PackedFloat32Arrayは高速な浮動小数点数配列
-var ez: PackedFloat32Array # 電場 (Ez成分)
-var hx: PackedFloat32Array # 磁場 (Hx成分)
-var hy: PackedFloat32Array # 磁場 (Hy成分)
+var ez: PackedFloat32Array = PackedFloat32Array() # 電場 (Ez成分)
+var hx: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hx成分)
+var hy: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hy成分)
 
 # ノードがシーンツリーに追加されたときに一度だけ呼び出される初期化関数
 func _ready():
@@ -16,3 +16,17 @@ func _ready():
 	ez.resize(GRID_WIDTH * GRID_HEIGHT)
 	hx.resize(GRID_WIDTH * GRID_HEIGHT)
 	hy.resize(GRID_WIDTH * GRID_HEIGHT)
+
+
+func _process(delta):
+	# Step A: 現在の電場(ez)を使って、次の瞬間の磁場(hx, hy)を計算
+	for y in range(1, GRID_HEIGHT - 1):
+		for x in range(1, GRID_WIDTH - 1):
+			# ここに磁場を更新する計算式が入る
+			pass
+
+	# Step B: 更新された磁場(hx, hy)を使って、次の瞬間の電場(ez)を計算
+	for y in range(1, GRID_HEIGHT - 1):
+		for x in range(1, GRID_WIDTH - 1):
+			# ここに電場を更新する計算式が入る
+			pass
