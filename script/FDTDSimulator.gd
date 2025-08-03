@@ -23,10 +23,15 @@ func _process(delta):
 	for y in range(1, GRID_HEIGHT - 1):
 		for x in range(1, GRID_WIDTH - 1):
 			# ここに磁場を更新する計算式が入る
-			pass
+			var idx = y * GRID_WIDTH + x
+			hx[idx] += (ez[idx] - ez[idx - GRID_WIDTH]) # Ezの変化からHxを計算
+			hy[idx] += (ez[idx + 1] - ez[idx])         # Ezの変化からHyを計算
+
 
 	# Step B: 更新された磁場(hx, hy)を使って、次の瞬間の電場(ez)を計算
 	for y in range(1, GRID_HEIGHT - 1):
 		for x in range(1, GRID_WIDTH - 1):
 			# ここに電場を更新する計算式が入る
-			pass
+			var idx = y * GRID_WIDTH + x
+			ez[idx] += (hy[idx] - hy[idx - 1]) - (hx[idx] - hx[idx - GRID_WIDTH]) # Hx,Hyの変化からEzを計算
+
