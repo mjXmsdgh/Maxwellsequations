@@ -50,7 +50,7 @@ func _process(delta):
 		for x in range(1, GRID_WIDTH - 1):
 			# ここに電場を更新する計算式が入る
 			var idx = y * GRID_WIDTH + x
-			ez[idx] = ez[idx] + COURANT_NUMBER * ((hy[idx] - hy[idx - 1]) - (hx[idx] - hx[idx - GRID_WIDTH]))
+			ez[idx] = ez[idx] + COURANT_NUMBER * ((hy[idx] - hy[idx - 1]) - (hx[idx + GRID_WIDTH] - hx[idx]))
 
 
 	var center_x = GRID_WIDTH / 2
@@ -58,7 +58,7 @@ func _process(delta):
 	var center_idx = center_y * GRID_WIDTH + center_x
 
 	# sin波を生成して中央の電場を揺らす
-	ez[center_idx] = ez[center_idx] + sin(time * WAVE_FREQUENCY)
+	ez[center_idx] = sin(time * WAVE_FREQUENCY) # ハードソース：値を加算ではなく、直接上書きする
 
 	var pixels = PackedByteArray()
 	pixels.resize(GRID_WIDTH * GRID_HEIGHT)
