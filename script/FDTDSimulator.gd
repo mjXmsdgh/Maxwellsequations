@@ -20,6 +20,7 @@ var texture: ImageTexture
 var ez: PackedFloat32Array = PackedFloat32Array() # 電場 (Ez成分)
 var hx: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hx成分)
 var hy: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hy成分)
+var center_idx: int # 波源の中心インデックス
 
 # ノードがシーンツリーに追加されたときに一度だけ呼び出される初期化関数
 func _ready():
@@ -31,6 +32,9 @@ func _ready():
 	image = Image.create(GRID_WIDTH, GRID_HEIGHT, false, Image.FORMAT_L8)
 	texture = ImageTexture.create_from_image(image)
 	$TextureRect.texture = texture
+
+	# 波源のインデックスを一度だけ計算して保存
+	center_idx = (GRID_HEIGHT / 2) * GRID_WIDTH + (GRID_WIDTH / 2)
 
 func _process(delta):
 
@@ -50,12 +54,12 @@ func _process(delta):
 		for x in range(1, GRID_WIDTH - 1):
 			# ここに電場を更新する計算式が入る
 			var idx = y * GRID_WIDTH + x
+
+			if idx == center_idx:
+				continue
+
 			ez[idx] = ez[idx] + COURANT_NUMBER * ((hy[idx] - hy[idx - 1]) - (hx[idx + GRID_WIDTH] - hx[idx]))
 
-
-	var center_x = GRID_WIDTH / 2
-	var center_y = GRID_HEIGHT / 2
-	var center_idx = center_y * GRID_WIDTH + center_x
 
 	# sin波を生成して中央の電場を揺らす
 	ez[center_idx] = sin(time * WAVE_FREQUENCY) # ハードソース：値を加算ではなく、直接上書きする
