@@ -1,5 +1,8 @@
 extends Control
 
+@export_category("Simulation Parameters")
+@export var click_strength: float = 5.0 # クリック時の波の強さ
+
 # シミュレーション領域の定義
 const GRID_WIDTH = 512  # グリッドの幅（解像度を上げる）
 const GRID_HEIGHT = 512 # グリッドの高さ（解像度を上げる）
@@ -76,6 +79,17 @@ func _process(delta):
 	texture.update(image) # 既存のテクスチャを新しい画像データで更新
 
 
+# 波源を追加する関数
+# grid_x, grid_y: 波源のグリッド座標
+# strength: 設定する電場の強さ
+func add_source(grid_x: int, grid_y: int, strength: float):
+	# 座標がグリッド範囲外なら何もしない
+	if grid_x < 1 or grid_x >= GRID_WIDTH - 1 or grid_y < 1 or grid_y >= GRID_HEIGHT - 1:
+		return
+
+	var idx = grid_y * GRID_WIDTH + grid_x
+	ez[idx] = strength # 電場を直接設定（ハードソース）
+
 func _input(event):
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
 		# TextureRectのローカル座標に変換
@@ -86,8 +100,5 @@ func _input(event):
 		var grid_x = int(local_pos.x / rect_size.x * GRID_WIDTH)
 		var grid_y = int(local_pos.y / rect_size.y * GRID_HEIGHT)
 
-		# 座標がグリッド範囲内かチェック
-		if grid_x >= 0 and grid_x < GRID_WIDTH and grid_y >= 0 and grid_y < GRID_HEIGHT:
-			# ここで波を発生させる
-			var click_idx = grid_y * GRID_WIDTH + grid_x
-			ez[click_idx] = 5.0 # クリックした瞬間に強い電場を与える（sin波でなくてもOK）
+		# 波源を追加する関数を呼び出す
+		add_source(grid_x, grid_y, click_strength)
