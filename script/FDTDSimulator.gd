@@ -62,7 +62,7 @@ func _process(delta):
 
 
 	# sin波を生成して中央の電場を揺らす
-	ez[center_idx] = sin(time * WAVE_FREQUENCY) # ハードソース：値を加算ではなく、直接上書きする
+	#ez[center_idx] = sin(time * WAVE_FREQUENCY) # ハードソース：値を加算ではなく、直接上書きする
 
 	var pixels = PackedByteArray()
 	pixels.resize(GRID_WIDTH * GRID_HEIGHT)
@@ -74,3 +74,20 @@ func _process(delta):
 
 	image.set_data(GRID_WIDTH, GRID_HEIGHT, false, Image.FORMAT_L8, pixels)
 	texture.update(image) # 既存のテクスチャを新しい画像データで更新
+
+
+func _input(event):
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
+		# TextureRectのローカル座標に変換
+		var local_pos = $TextureRect.get_local_mouse_position()
+		var rect_size = $TextureRect.size
+
+		# グリッド座標に変換（TextureRectのサイズでスケーリング）
+		var grid_x = int(local_pos.x / rect_size.x * GRID_WIDTH)
+		var grid_y = int(local_pos.y / rect_size.y * GRID_HEIGHT)
+
+		# 座標がグリッド範囲内かチェック
+		if grid_x >= 0 and grid_x < GRID_WIDTH and grid_y >= 0 and grid_y < GRID_HEIGHT:
+			# ここで波を発生させる
+			var click_idx = grid_y * GRID_WIDTH + grid_x
+			ez[click_idx] = 5.0 # クリックした瞬間に強い電場を与える（sin波でなくてもOK）
