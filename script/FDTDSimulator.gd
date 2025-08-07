@@ -25,6 +25,7 @@ var hx: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hx成分)
 var hy: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hy成分)
 var center_idx: int # 波源の中心インデックス
 var obstacle_map: PackedByteArray
+var last_mouse_grid_pos: Vector2i = Vector2i(-1, -1) # 最後に描画したマウスのグリッド座標
 
 
 # ノードがシーンツリーに追加されたときに一度だけ呼び出される初期化関数
@@ -100,24 +101,69 @@ func add_source(grid_x: int, grid_y: int, strength: float):
 	var idx = grid_y * GRID_WIDTH + grid_x
 	ez[idx] = strength # 電場を直接設定（ハードソース）
 
+# マウスのグローバル座標をグリッド座標に変換するヘルパー関数
+func get_mouse_grid_pos() -> Vector2i:
+	var local_pos = $TextureRect.get_local_mouse_position()
+	var rect_size = $TextureRect.size
+	# rect_sizeが0だとゼロ除算エラーになるのを防ぐ
+	if rect_size.x == 0 or rect_size.y == 0:
+		return Vector2i(-1, -1)
+	var grid_x = int(local_pos.x / rect_size.x * GRID_WIDTH)
+	var grid_y = int(local_pos.y / rect_size.y * GRID_HEIGHT)
+	return Vector2i(grid_x, grid_y)
+
+# ブレゼンハムのアルゴリズムを使って、2点間に障害物の直線を引く
+func draw_obstacle_line(p1: Vector2i, p2: Vector2i):
+	var x1 = p1.x
+	var y1 = p1.y
+	var x2 = p2.x
+	var y2 = p2.y
+
+	var dx = abs(x2 - x1)
+	var sx = 1 if x1 < x2 else -1
+	var dy = -abs(y2 - y1)
+	var sy = 1 if y1 < y2 else -1
+	var err = dx + dy
+
+	while true:
+		# 座標がグリッド範囲内かチェック
+		if x1 >= 0 and x1 < GRID_WIDTH and y1 >= 0 and y1 < GRID_HEIGHT:
+			var idx = y1 * GRID_WIDTH + x1
+			obstacle_map[idx] = 1
+
+		if x1 == x2 and y1 == y2:
+			break
+
+		var e2 = 2 * err
+		if e2 >= dy:
+			err += dy
+			x1 += sx
+		if e2 <= dx:
+			err += dx
+			y1 += sy
+
 func _input(event):
-	# 左ボタンが押された瞬間(クリック)、または押されたままマウスが動いた場合(ドラッグ)に障害物を描画
-	if (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed()) \
-	or (event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT):
-		# TextureRectのローカル座標に変換
-		var local_pos = $TextureRect.get_local_mouse_position()
-		var rect_size = $TextureRect.size
-		var grid_x = int(local_pos.x / rect_size.x * GRID_WIDTH)
-		var grid_y = int(local_pos.y / rect_size.y * GRID_HEIGHT)
+	# --- 障害物描画ロジック ---
+	# 左ボタンが押された瞬間
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.is_pressed():
+			var current_pos = get_mouse_grid_pos()
+			if current_pos.x >= 0: # 有効な座標かチェック
+				draw_obstacle_line(current_pos, current_pos) # 1ピクセルだけ描画
+			last_mouse_grid_pos = current_pos
+		else: # ボタンが離された時
+			last_mouse_grid_pos = Vector2i(-1, -1) # 追跡をリセット
 
-		if grid_x >= 0 and grid_x < GRID_WIDTH and grid_y >= 0 and grid_y < GRID_HEIGHT:
-			var idx = grid_y * GRID_WIDTH + grid_x
-			obstacle_map[idx] = 1 # 障害物フラグを立てる
+	# 左ボタンが押されたままマウスが動いた場合
+	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+		if last_mouse_grid_pos.x >= 0: # ドラッグが開始されているかチェック
+			var current_pos = get_mouse_grid_pos()
+			if current_pos.x >= 0 and current_pos != last_mouse_grid_pos:
+				draw_obstacle_line(last_mouse_grid_pos, current_pos)
+				last_mouse_grid_pos = current_pos
 
-	# 右クリックで波を発生させる
+	# --- 波源追加ロジック ---
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
-		var local_pos = $TextureRect.get_local_mouse_position()
-		var rect_size = $TextureRect.size
-		var grid_x = int(local_pos.x / rect_size.x * GRID_WIDTH)
-		var grid_y = int(local_pos.y / rect_size.y * GRID_HEIGHT)
-		add_source(grid_x, grid_y, click_strength) # 波源を追加
+		var grid_pos = get_mouse_grid_pos()
+		if grid_pos.x >= 0:
+			add_source(grid_pos.x, grid_pos.y, click_strength)
