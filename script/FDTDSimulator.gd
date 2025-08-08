@@ -74,6 +74,11 @@ func _process(delta):
 	# sin波を生成して中央の電場を揺らす
 	#ez[center_idx] = sin(time * WAVE_FREQUENCY) # ハードソース：値を加算ではなく、直接上書きする
 
+	_update_texture()
+
+
+# シミュレーション結果をテクスチャに描画する
+func _update_texture():
 	var pixels = PackedByteArray()
 	pixels.resize(GRID_WIDTH * GRID_HEIGHT)
 
@@ -90,7 +95,7 @@ func _process(delta):
 	texture.update(image) # 既存のテクスチャを新しい画像データで更新
 
 
-# 波源を追加する関数
+# 波源を追加する関数 (ハードソース)
 # grid_x, grid_y: 波源のグリッド座標
 # strength: 設定する電場の強さ
 func add_source(grid_x: int, grid_y: int, strength: float):
