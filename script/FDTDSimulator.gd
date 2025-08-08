@@ -44,22 +44,34 @@ func _ready():
 	center_idx = (GRID_HEIGHT / 2) * GRID_WIDTH + (GRID_WIDTH / 2)
 
 func _process(delta):
-
 	time += delta
 
-	# Step A: 現在の電場(ez)を使って、次の瞬間の磁場(hx, hy)を計算
+	# 物理演算の更新
+	_update_physics()
+
+	# sin波を生成して中央の電場を揺らす
+	#ez[center_idx] = sin(time * WAVE_FREQUENCY)
+
+	# テクスチャの更新
+	_update_texture()
+
+# FDTD法の計算を実行する
+func _update_physics():
+	_update_magnetic_field()
+	_update_electric_field()
+
+# Step A: 現在の電場(ez)を使って、次の瞬間の磁場(hx, hy)を計算
+func _update_magnetic_field():
 	for y in range(1, GRID_HEIGHT - 1):
 		for x in range(1, GRID_WIDTH - 1):
-			# ここに磁場を更新する計算式が入る
 			var idx = y * GRID_WIDTH + x
 			hx[idx] = hx[idx] - COURANT_NUMBER * (ez[idx] - ez[idx - GRID_WIDTH])
 			hy[idx] = hy[idx] + COURANT_NUMBER * (ez[idx + 1] - ez[idx])
 
-
-	# Step B: 更新された磁場(hx, hy)を使って、次の瞬間の電場(ez)を計算
+# Step B: 更新された磁場(hx, hy)を使って、次の瞬間の電場(ez)を計算
+func _update_electric_field():
 	for y in range(1, GRID_HEIGHT - 1):
 		for x in range(1, GRID_WIDTH - 1):
-			# ここに電場を更新する計算式が入る
 			var idx = y * GRID_WIDTH + x
 
 			if idx == center_idx:
@@ -69,12 +81,6 @@ func _process(delta):
 
 			if obstacle_map[idx] == 1:
 				ez[idx] = 0.0
-
-
-	# sin波を生成して中央の電場を揺らす
-	#ez[center_idx] = sin(time * WAVE_FREQUENCY) # ハードソース：値を加算ではなく、直接上書きする
-
-	_update_texture()
 
 
 # シミュレーション結果をテクスチャに描画する
