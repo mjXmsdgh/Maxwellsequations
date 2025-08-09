@@ -12,11 +12,10 @@ const GRID_HEIGHT = 512 # グリッドの高さ（解像度を上げる）
 const COURANT_NUMBER = 0.5
 const WAVE_FREQUENCY = 8.0 # 波の周波数（値を小さくすると波長が長くなる）
 
-var time = 0.0
+var time: float = 0.0 # シミュレーションの経過時間
 
-
-var image: Image
-var texture: ImageTexture
+var image: Image # シミュレーション結果を格納する画像データ
+var texture: ImageTexture # 画面に表示するためのテクスチャ
 
 # FDTD法で使用する物理量を格納する配列
 # PackedFloat32Arrayは高速な浮動小数点数配列
