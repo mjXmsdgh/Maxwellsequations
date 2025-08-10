@@ -123,7 +123,7 @@ func get_mouse_grid_pos() -> Vector2i:
 	return Vector2i(grid_x, grid_y)
 
 # ブレゼンハムのアルゴリズムを使って、2点間に障害物の直線を引く
-func draw_obstacle_line(p1: Vector2i, p2: Vector2i):
+func draw_obstacle_line(p1: Vector2i, p2: Vector2i, target_map: PackedByteArray, map_width: int, map_height: int):
 	var x1 = p1.x
 	var y1 = p1.y
 	var x2 = p2.x
@@ -137,9 +137,9 @@ func draw_obstacle_line(p1: Vector2i, p2: Vector2i):
 
 	while true:
 		# 座標がグリッド範囲内かチェック
-		if x1 >= 0 and x1 < GRID_WIDTH and y1 >= 0 and y1 < GRID_HEIGHT:
-			var idx = y1 * GRID_WIDTH + x1
-			obstacle_map[idx] = 1
+		if x1 >= 0 and x1 < map_width and y1 >= 0 and y1 < map_height:
+			var idx = y1 * map_width + x1
+			target_map[idx] = 1
 
 		if x1 == x2 and y1 == y2:
 			break
@@ -159,7 +159,7 @@ func _input(event):
 		if event.is_pressed():
 			var current_pos = get_mouse_grid_pos()
 			if current_pos.x >= 0: # 有効な座標かチェック
-				draw_obstacle_line(current_pos, current_pos) # 1ピクセルだけ描画
+				draw_obstacle_line(current_pos, current_pos, obstacle_map, GRID_WIDTH, GRID_HEIGHT) # 1ピクセルだけ描画
 			last_mouse_grid_pos = current_pos
 		else: # ボタンが離された時
 			last_mouse_grid_pos = Vector2i(-1, -1) # 追跡をリセット
@@ -169,7 +169,7 @@ func _input(event):
 		if last_mouse_grid_pos.x >= 0: # ドラッグが開始されているかチェック
 			var current_pos = get_mouse_grid_pos()
 			if current_pos.x >= 0 and current_pos != last_mouse_grid_pos:
-				draw_obstacle_line(last_mouse_grid_pos, current_pos)
+				draw_obstacle_line(last_mouse_grid_pos, current_pos, obstacle_map, GRID_WIDTH, GRID_HEIGHT)
 				last_mouse_grid_pos = current_pos
 
 	# --- 波源追加ロジック ---
