@@ -152,28 +152,33 @@ func draw_obstacle_line(p1: Vector2i, p2: Vector2i, target_map: PackedByteArray,
 			err += dx
 			y1 += sy
 
-func _input(event):
-	# --- 障害物描画ロジック ---
-	# 左ボタンが押された瞬間
+# --- 入力処理 ---
+
+func _handle_obstacle_input(event: InputEvent):
+	# 障害物描画ロジック (左クリック & ドラッグ)
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.is_pressed():
 			var current_pos = get_mouse_grid_pos()
-			if current_pos.x >= 0: # 有効な座標かチェック
-				draw_obstacle_line(current_pos, current_pos, obstacle_map, GRID_WIDTH, GRID_HEIGHT) # 1ピクセルだけ描画
+			if current_pos.x >= 0:
+				draw_obstacle_line(current_pos, current_pos, obstacle_map, GRID_WIDTH, GRID_HEIGHT)
 			last_mouse_grid_pos = current_pos
-		else: # ボタンが離された時
-			last_mouse_grid_pos = Vector2i(-1, -1) # 追跡をリセット
+		else:
+			last_mouse_grid_pos = Vector2i(-1, -1)
 
-	# 左ボタンが押されたままマウスが動いた場合
 	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
-		if last_mouse_grid_pos.x >= 0: # ドラッグが開始されているかチェック
+		if last_mouse_grid_pos.x >= 0:
 			var current_pos = get_mouse_grid_pos()
 			if current_pos.x >= 0 and current_pos != last_mouse_grid_pos:
 				draw_obstacle_line(last_mouse_grid_pos, current_pos, obstacle_map, GRID_WIDTH, GRID_HEIGHT)
 				last_mouse_grid_pos = current_pos
 
-	# --- 波源追加ロジック ---
+func _handle_source_input(event: InputEvent):
+	# 波源追加ロジック (右クリック)
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
 		var grid_pos = get_mouse_grid_pos()
 		if grid_pos.x >= 0:
 			add_source(grid_pos.x, grid_pos.y, click_strength)
+
+func _input(event: InputEvent):
+	_handle_obstacle_input(event)
+	_handle_source_input(event)
