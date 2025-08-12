@@ -12,6 +12,15 @@ const GRID_HEIGHT = 512 # グリッドの高さ（解像度を上げる）
 const COURANT_NUMBER = 0.5
 const WAVE_FREQUENCY = 8.0 # 波の周波数（値を小さくすると波長が長くなる）
 
+# 物理・描画定数
+const OBSTACLE_VALUE: int = 1
+const OBSTACLE_DRAW_COLOR: int = 128
+const EZ_CLAMP_MIN: float = -1.0
+const EZ_CLAMP_MAX: float = 1.0
+const GRAYSCALE_MAX: float = 255.0
+
+const INVALID_GRID_POS := Vector2i(-1, -1)
+
 var time: float = 0.0 # シミュレーションの経過時間
 
 var image: Image # シミュレーション結果を格納する画像データ
@@ -24,7 +33,7 @@ var hx: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hx成分)
 var hy: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hy成分)
 var center_idx: int # 波源の中心インデックス
 var obstacle_map: PackedByteArray
-var last_mouse_grid_pos: Vector2i = Vector2i(-1, -1) # 最後に描画したマウスのグリッド座標
+var last_mouse_grid_pos: Vector2i = INVALID_GRID_POS # 最後に描画したマウスのグリッド座標
 
 
 # ノードがシーンツリーに追加されたときに一度だけ呼び出される初期化関数
@@ -78,7 +87,7 @@ func _update_electric_field():
 
 			ez[idx] = ez[idx] + COURANT_NUMBER * ((hy[idx] - hy[idx - 1]) - (hx[idx + GRID_WIDTH] - hx[idx]))
 
-			if obstacle_map[idx] == 1:
+			if obstacle_map[idx] == OBSTACLE_VALUE:
 				ez[idx] = 0.0
 
 
@@ -88,13 +97,13 @@ func _update_texture():
 	pixels.resize(GRID_WIDTH * GRID_HEIGHT)
 
 	for i in range(ez.size()):
-		if obstacle_map[i] == 1:
-			# 障害物は中間の灰色(128)としてエンコード
-			pixels[i] = 128
+		if obstacle_map[i] == OBSTACLE_VALUE:
+			# 障害物は中間の灰色としてエンコード
+			pixels[i] = OBSTACLE_DRAW_COLOR
 		else:
-			# ezの値を -1.0 ~ 1.0 から 0 ~ 255 の範囲に変換
-			var value = clampf(ez[i], -1.0, 1.0) # 値が大きくなりすぎないように制限
-			pixels[i] = int((value + 1.0) * 0.5 * 255.0)
+			# ezの値を EZ_CLAMP_MIN ~ EZ_CLAMP_MAX から 0 ~ GRAYSCALE_MAX の範囲に変換
+			var value = clampf(ez[i], EZ_CLAMP_MIN, EZ_CLAMP_MAX) # 値が大きくなりすぎないように制限
+			pixels[i] = int((value - EZ_CLAMP_MIN) / (EZ_CLAMP_MAX - EZ_CLAMP_MIN) * GRAYSCALE_MAX)
 
 	image.set_data(GRID_WIDTH, GRID_HEIGHT, false, Image.FORMAT_L8, pixels)
 	texture.update(image) # 既存のテクスチャを新しい画像データで更新
@@ -117,7 +126,7 @@ func get_mouse_grid_pos() -> Vector2i:
 	var rect_size = $TextureRect.size
 	# rect_sizeが0だとゼロ除算エラーになるのを防ぐ
 	if rect_size.x == 0 or rect_size.y == 0:
-		return Vector2i(-1, -1)
+		return INVALID_GRID_POS
 	var grid_x = int(local_pos.x / rect_size.x * GRID_WIDTH)
 	var grid_y = int(local_pos.y / rect_size.y * GRID_HEIGHT)
 	return Vector2i(grid_x, grid_y)
@@ -139,7 +148,7 @@ func draw_obstacle_line(p1: Vector2i, p2: Vector2i, target_map: PackedByteArray,
 		# 座標がグリッド範囲内かチェック
 		if x1 >= 0 and x1 < map_width and y1 >= 0 and y1 < map_height:
 			var idx = y1 * map_width + x1
-			target_map[idx] = 1
+			target_map[idx] = OBSTACLE_VALUE
 
 		if x1 == x2 and y1 == y2:
 			break
@@ -162,8 +171,8 @@ func _handle_obstacle_input(event: InputEvent):
 			if current_pos.x >= 0:
 				draw_obstacle_line(current_pos, current_pos, obstacle_map, GRID_WIDTH, GRID_HEIGHT)
 			last_mouse_grid_pos = current_pos
-		else:
-			last_mouse_grid_pos = Vector2i(-1, -1)
+		else: # マウスボタンを離した
+			last_mouse_grid_pos = INVALID_GRID_POS
 
 	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
 		if last_mouse_grid_pos.x >= 0:
