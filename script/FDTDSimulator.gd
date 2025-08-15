@@ -164,21 +164,36 @@ func draw_obstacle_line(p1: Vector2i, p2: Vector2i, target_map: PackedByteArray,
 # --- 入力処理 ---
 
 func _handle_obstacle_input(event: InputEvent):
-	# 障害物描画ロジック (左クリック & ドラッグ)
+	# --- 左クリックの処理 ---
+	# イベントがマウスボタン、かつ左ボタンの場合
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		# ボタンが押された瞬間の処理
 		if event.is_pressed():
+			# 現在のマウス位置をグリッド座標で取得
 			var current_pos = get_mouse_grid_pos()
+			# 座標が有効なら、クリックした点に障害物を描画
 			if current_pos.x >= 0:
+				# 点を描画するために、始点と終点を同じ位置にする
 				draw_obstacle_line(current_pos, current_pos, obstacle_map, GRID_WIDTH, GRID_HEIGHT)
+			# ドラッグ描画のために、最後のマウス位置を記録
 			last_mouse_grid_pos = current_pos
-		else: # マウスボタンを離した
+		# ボタンが離された瞬間の処理
+		else:
+			# 最後のマウス位置をリセットし、ドラッグ描画を終了
 			last_mouse_grid_pos = INVALID_GRID_POS
 
+	# --- マウスドラッグの処理 ---
+	# イベントがマウス移動、かつ左ボタンが押されている場合
 	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+		# 前回のマウス位置が有効な場合（ドラッグ中）
 		if last_mouse_grid_pos.x >= 0:
+			# 現在のマウス位置を取得
 			var current_pos = get_mouse_grid_pos()
+			# 新しい位置が有効で、かつ前回の位置から移動している場合
 			if current_pos.x >= 0 and current_pos != last_mouse_grid_pos:
+				# 前回の位置から現在の位置まで直線を引く
 				draw_obstacle_line(last_mouse_grid_pos, current_pos, obstacle_map, GRID_WIDTH, GRID_HEIGHT)
+				# 最後のマウス位置を更新
 				last_mouse_grid_pos = current_pos
 
 func _handle_source_input(event: InputEvent):
