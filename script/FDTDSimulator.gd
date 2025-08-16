@@ -38,18 +38,23 @@ var last_mouse_grid_pos: Vector2i = INVALID_GRID_POS # 最後に描画したマ�
 
 # ノードがシーンツリーに追加されたときに一度だけ呼び出される初期化関数
 func _ready():
-	# 各配列をグリッドサイズに合わせてリサイズし、全要素を0.0で初期化
+	# 各配列をグリッドサイズに合わせて一度だけリサイズ
 	ez.resize(GRID_WIDTH * GRID_HEIGHT)
 	hx.resize(GRID_WIDTH * GRID_HEIGHT)
 	hy.resize(GRID_WIDTH * GRID_HEIGHT)
 	obstacle_map.resize(GRID_WIDTH * GRID_HEIGHT)
 
+	# 画像とテクスチャを一度だけ生成
 	image = Image.create(GRID_WIDTH, GRID_HEIGHT, false, Image.FORMAT_L8)
 	texture = ImageTexture.create_from_image(image)
+
+	reset_simulation()
 	$TextureRect.texture = texture
 
 	# 波源のインデックスを一度だけ計算して保存
 	center_idx = (GRID_HEIGHT / 2) * GRID_WIDTH + (GRID_WIDTH / 2)
+
+
 
 func _process(delta):
 	time += delta
@@ -107,6 +112,18 @@ func _update_texture():
 
 	image.set_data(GRID_WIDTH, GRID_HEIGHT, false, Image.FORMAT_L8, pixels)
 	texture.update(image) # 既存のテクスチャを新しい画像データで更新
+
+
+func reset_simulation():
+	# 各配列を初期値で埋める
+	ez.fill(0.0)
+	hx.fill(0.0)
+	hy.fill(0.0)
+	obstacle_map.fill(0)
+	time = 0.0 # 時間もリセット
+
+	# テクスチャをクリアして即時反映
+	_update_texture()
 
 
 # 波源を追加する関数 (ハードソース)
@@ -206,3 +223,6 @@ func _handle_source_input(event: InputEvent):
 func _input(event: InputEvent):
 	_handle_obstacle_input(event)
 	_handle_source_input(event)
+
+	if event is InputEventKey and event.is_pressed() and event.keycode == KEY_R:
+		reset_simulation()
