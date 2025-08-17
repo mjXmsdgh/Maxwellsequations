@@ -1,5 +1,7 @@
 extends Control
 
+class_name FDTDSimulator
+
 @export_category("Simulation Parameters")
 @export var click_strength: float = 5.0 # クリック時の波の強さ
 
