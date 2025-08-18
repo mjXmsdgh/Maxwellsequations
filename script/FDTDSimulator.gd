@@ -6,16 +6,10 @@ class_name FDTDSimulator
 @export var click_strength: float = 5.0 # クリック時の波の強さ
 
 # シミュレーション領域の定義
-const GRID_WIDTH = 512  # グリッドの幅（解像度を上げる）
-const GRID_HEIGHT = 512 # グリッドの高さ（解像度を上げる）
-
-# FDTD法の安定性を保つための係数 (クーラン数)
-# 2Dの場合、この値は 1/sqrt(2) (約0.707) 以下である必要があります
-const COURANT_NUMBER = 0.5
-const WAVE_FREQUENCY = 8.0 # 波の周波数（値を小さくすると波長が長くなる）
+const GRID_WIDTH = 512  # グリッドの幅
+const GRID_HEIGHT = 512 # グリッドの高さ
 
 # 物理・描画定数
-const OBSTACLE_VALUE: int = 1
 const OBSTACLE_DRAW_COLOR: int = 128
 const EZ_CLAMP_MIN: float = -1.0
 const EZ_CLAMP_MAX: float = 1.0
@@ -23,79 +17,32 @@ const GRAYSCALE_MAX: float = 255.0
 
 const INVALID_GRID_POS := Vector2i(-1, -1)
 
-var time: float = 0.0 # シミュレーションの経過時間
-
 var image: Image # シミュレーション結果を格納する画像データ
 var texture: ImageTexture # 画面に表示するためのテクスチャ
 
-# FDTD法で使用する物理量を格納する配列
-# PackedFloat32Arrayは高速な浮動小数点数配列
-var ez: PackedFloat32Array = PackedFloat32Array() # 電場 (Ez成分)
-var hx: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hx成分)
-var hy: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hy成分)
-var center_idx: int # 波源の中心インデックス
-var obstacle_map: PackedByteArray
+var engine: FDTDEngine
 var last_mouse_grid_pos: Vector2i = INVALID_GRID_POS # 最後に描画したマウスのグリッド座標
 
 
 # ノードがシーンツリーに追加されたときに一度だけ呼び出される初期化関数
 func _ready():
-	# 各配列をグリッドサイズに合わせて一度だけリサイズ
-	ez.resize(GRID_WIDTH * GRID_HEIGHT)
-	hx.resize(GRID_WIDTH * GRID_HEIGHT)
-	hy.resize(GRID_WIDTH * GRID_HEIGHT)
-	obstacle_map.resize(GRID_WIDTH * GRID_HEIGHT)
+	# 計算エンジンのインスタンスを作成し、初期化
+	engine = FDTDEngine.new()
+	engine.initialize(GRID_WIDTH, GRID_HEIGHT)
 
 	# 画像とテクスチャを一度だけ生成
 	image = Image.create(GRID_WIDTH, GRID_HEIGHT, false, Image.FORMAT_L8)
 	texture = ImageTexture.create_from_image(image)
-
-	reset_simulation()
 	$TextureRect.texture = texture
 
-	# 波源のインデックスを一度だけ計算して保存
-	center_idx = (GRID_HEIGHT / 2) * GRID_WIDTH + (GRID_WIDTH / 2)
-
-
-
-func _process(delta):
-	time += delta
-
-	# 物理演算の更新
-	_update_physics()
-
-	# sin波を生成して中央の電場を揺らす
-	#ez[center_idx] = sin(time * WAVE_FREQUENCY)
-
-	# テクスチャの更新
+	# 最初のテクスチャ更新
 	_update_texture()
 
-# FDTD法の計算を実行する
-func _update_physics():
-	_update_magnetic_field()
-	_update_electric_field()
-
-# Step A: 現在の電場(ez)を使って、次の瞬間の磁場(hx, hy)を計算
-func _update_magnetic_field():
-	for y in range(1, GRID_HEIGHT - 1):
-		for x in range(1, GRID_WIDTH - 1):
-			var idx = y * GRID_WIDTH + x
-			hx[idx] = hx[idx] - COURANT_NUMBER * (ez[idx] - ez[idx - GRID_WIDTH])
-			hy[idx] = hy[idx] + COURANT_NUMBER * (ez[idx + 1] - ez[idx])
-
-# Step B: 更新された磁場(hx, hy)を使って、次の瞬間の電場(ez)を計算
-func _update_electric_field():
-	for y in range(1, GRID_HEIGHT - 1):
-		for x in range(1, GRID_WIDTH - 1):
-			var idx = y * GRID_WIDTH + x
-
-			if idx == center_idx:
-				continue
-
-			ez[idx] = ez[idx] + COURANT_NUMBER * ((hy[idx] - hy[idx - 1]) - (hx[idx + GRID_WIDTH] - hx[idx]))
-
-			if obstacle_map[idx] == OBSTACLE_VALUE:
-				ez[idx] = 0.0
+func _process(delta):
+	# 物理演算の更新
+	engine.step(delta)
+	# テクスチャの更新
+	_update_texture()
 
 
 # シミュレーション結果をテクスチャに描画する
@@ -103,13 +50,16 @@ func _update_texture():
 	var pixels = PackedByteArray()
 	pixels.resize(GRID_WIDTH * GRID_HEIGHT)
 
-	for i in range(ez.size()):
-		if obstacle_map[i] == OBSTACLE_VALUE:
+	var current_ez = engine.ez
+	var current_obstacle_map = engine.obstacle_map
+
+	for i in range(current_ez.size()):
+		if current_obstacle_map[i] == FDTDEngine.OBSTACLE_VALUE:
 			# 障害物は中間の灰色としてエンコード
 			pixels[i] = OBSTACLE_DRAW_COLOR
 		else:
 			# ezの値を EZ_CLAMP_MIN ~ EZ_CLAMP_MAX から 0 ~ GRAYSCALE_MAX の範囲に変換
-			var value = clampf(ez[i], EZ_CLAMP_MIN, EZ_CLAMP_MAX) # 値が大きくなりすぎないように制限
+			var value = clampf(current_ez[i], EZ_CLAMP_MIN, EZ_CLAMP_MAX) # 値が大きくなりすぎないように制限
 			pixels[i] = int((value - EZ_CLAMP_MIN) / (EZ_CLAMP_MAX - EZ_CLAMP_MIN) * GRAYSCALE_MAX)
 
 	image.set_data(GRID_WIDTH, GRID_HEIGHT, false, Image.FORMAT_L8, pixels)
@@ -117,27 +67,9 @@ func _update_texture():
 
 
 func reset_simulation():
-	# 各配列を初期値で埋める
-	ez.fill(0.0)
-	hx.fill(0.0)
-	hy.fill(0.0)
-	obstacle_map.fill(0)
-	time = 0.0 # 時間もリセット
-
+	engine.reset()
 	# テクスチャをクリアして即時反映
 	_update_texture()
-
-
-# 波源を追加する関数 (ハードソース)
-# grid_x, grid_y: 波源のグリッド座標
-# strength: 設定する電場の強さ
-func add_source(grid_x: int, grid_y: int, strength: float):
-	# 座標がグリッド範囲外なら何もしない
-	if grid_x < 1 or grid_x >= GRID_WIDTH - 1 or grid_y < 1 or grid_y >= GRID_HEIGHT - 1:
-		return
-
-	var idx = grid_y * GRID_WIDTH + grid_x
-	ez[idx] = strength # 電場を直接設定（ハードソース）
 
 # マウスのグローバル座標をグリッド座標に変換するヘルパー関数
 func get_mouse_grid_pos() -> Vector2i:
@@ -149,36 +81,6 @@ func get_mouse_grid_pos() -> Vector2i:
 	var grid_x = int(local_pos.x / rect_size.x * GRID_WIDTH)
 	var grid_y = int(local_pos.y / rect_size.y * GRID_HEIGHT)
 	return Vector2i(grid_x, grid_y)
-
-# ブレゼンハムのアルゴリズムを使って、2点間に障害物の直線を引く
-func draw_obstacle_line(p1: Vector2i, p2: Vector2i, target_map: PackedByteArray, map_width: int, map_height: int):
-	var x1 = p1.x
-	var y1 = p1.y
-	var x2 = p2.x
-	var y2 = p2.y
-
-	var dx = abs(x2 - x1)
-	var sx = 1 if x1 < x2 else -1
-	var dy = -abs(y2 - y1)
-	var sy = 1 if y1 < y2 else -1
-	var err = dx + dy
-
-	while true:
-		# 座標がグリッド範囲内かチェック
-		if x1 >= 0 and x1 < map_width and y1 >= 0 and y1 < map_height:
-			var idx = y1 * map_width + x1
-			target_map[idx] = OBSTACLE_VALUE
-
-		if x1 == x2 and y1 == y2:
-			break
-
-		var e2 = 2 * err
-		if e2 >= dy:
-			err += dy
-			x1 += sx
-		if e2 <= dx:
-			err += dx
-			y1 += sy
 
 # --- 入力処理 ---
 
@@ -193,7 +95,7 @@ func _handle_obstacle_input(event: InputEvent):
 			# 座標が有効なら、クリックした点に障害物を描画
 			if current_pos.x >= 0:
 				# 点を描画するために、始点と終点を同じ位置にする
-				draw_obstacle_line(current_pos, current_pos, obstacle_map, GRID_WIDTH, GRID_HEIGHT)
+				engine.add_obstacle_line(current_pos, current_pos)
 			# ドラッグ描画のために、最後のマウス位置を記録
 			last_mouse_grid_pos = current_pos
 		# ボタンが離された瞬間の処理
@@ -211,7 +113,7 @@ func _handle_obstacle_input(event: InputEvent):
 			# 新しい位置が有効で、かつ前回の位置から移動している場合
 			if current_pos.x >= 0 and current_pos != last_mouse_grid_pos:
 				# 前回の位置から現在の位置まで直線を引く
-				draw_obstacle_line(last_mouse_grid_pos, current_pos, obstacle_map, GRID_WIDTH, GRID_HEIGHT)
+				engine.add_obstacle_line(last_mouse_grid_pos, current_pos)
 				# 最後のマウス位置を更新
 				last_mouse_grid_pos = current_pos
 
@@ -220,7 +122,7 @@ func _handle_source_input(event: InputEvent):
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
 		var grid_pos = get_mouse_grid_pos()
 		if grid_pos.x >= 0:
-			add_source(grid_pos.x, grid_pos.y, click_strength)
+			engine.add_source(grid_pos.x, grid_pos.y, click_strength)
 
 func _input(event: InputEvent):
 	_handle_obstacle_input(event)
