@@ -2,6 +2,10 @@ extends RefCounted
 class_name FDTDEngine
 
 # --- 定数 ---
+# シミュレーション領域の定義
+const GRID_WIDTH = 512  # グリッドの幅
+const GRID_HEIGHT = 512 # グリッドの高さ
+
 # FDTD法の安定性を保つための係数 (クーラン数)
 const COURANT_NUMBER = 0.5
 const WAVE_FREQUENCY = 8.0 # 波の周波数（値を小さくすると波長が長くなる）
@@ -23,9 +27,9 @@ var obstacle_map: PackedByteArray
 var center_idx: int # 波源の中心インデックス
 
 # --- 初期化 ---
-func initialize(width: int, height: int):
-	grid_width = width
-	grid_height = height
+func initialize():
+	grid_width = GRID_WIDTH
+	grid_height = GRID_HEIGHT
 	var size = grid_width * grid_height
 
 	ez.resize(size)

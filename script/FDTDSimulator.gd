@@ -3,13 +3,9 @@ extends Control
 class_name FDTDSimulator
 
 @export_category("Simulation Parameters")
-@export var click_strength: float = 5.0 # クリック時の波の強さ
+@export var click_strength: float = 5.0 # 右クリック時の波の強さ
 
-# シミュレーション領域の定義
-const GRID_WIDTH = 512  # グリッドの幅
-const GRID_HEIGHT = 512 # グリッドの高さ
-
-# 物理・描画定数
+@export_category("Visualization")
 const OBSTACLE_DRAW_COLOR: int = 128
 const EZ_CLAMP_MIN: float = -1.0
 const EZ_CLAMP_MAX: float = 1.0
@@ -43,10 +39,10 @@ var last_mouse_grid_pos: Vector2i = INVALID_GRID_POS # 最後に描画したマ�
 func _ready():
 	# 計算エンジンのインスタンスを作成し、初期化
 	engine = FDTDEngine.new()
-	engine.initialize(GRID_WIDTH, GRID_HEIGHT)
+	engine.initialize()
 
 	# 画像とテクスチャを一度だけ生成
-	image = Image.create(GRID_WIDTH, GRID_HEIGHT, false, Image.FORMAT_L8)
+	image = Image.create(grid_width, grid_height, false, Image.FORMAT_L8)
 	texture = ImageTexture.create_from_image(image)
 	$TextureRect.texture = texture
 
@@ -63,7 +59,7 @@ func _process(delta):
 # シミュレーション結果をテクスチャに描画する
 func _update_texture():
 	var pixels = PackedByteArray()
-	pixels.resize(GRID_WIDTH * GRID_HEIGHT)
+	pixels.resize(grid_width * grid_height)
 
 	var current_ez = engine.ez
 	var current_obstacle_map = engine.obstacle_map
@@ -77,7 +73,7 @@ func _update_texture():
 			var value = clampf(current_ez[i], EZ_CLAMP_MIN, EZ_CLAMP_MAX) # 値が大きくなりすぎないように制限
 			pixels[i] = int((value - EZ_CLAMP_MIN) / (EZ_CLAMP_MAX - EZ_CLAMP_MIN) * GRAYSCALE_MAX)
 
-	image.set_data(GRID_WIDTH, GRID_HEIGHT, false, Image.FORMAT_L8, pixels)
+	image.set_data(grid_width, grid_height, false, Image.FORMAT_L8, pixels)
 	texture.update(image) # 既存のテクスチャを新しい画像データで更新
 
 
@@ -93,8 +89,8 @@ func get_mouse_grid_pos() -> Vector2i:
 	# rect_sizeが0だとゼロ除算エラーになるのを防ぐ
 	if rect_size.x == 0 or rect_size.y == 0:
 		return INVALID_GRID_POS
-	var grid_x = int(local_pos.x / rect_size.x * GRID_WIDTH)
-	var grid_y = int(local_pos.y / rect_size.y * GRID_HEIGHT)
+	var grid_x = int(local_pos.x / rect_size.x * grid_width)
+	var grid_y = int(local_pos.y / rect_size.y * grid_height)
 	return Vector2i(grid_x, grid_y)
 
 # --- 入力処理 ---
