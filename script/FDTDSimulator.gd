@@ -136,8 +136,11 @@ func _handle_source_input(event: InputEvent):
 			engine.add_source(grid_pos.x, grid_pos.y, click_strength)
 
 func _input(event: InputEvent):
+	# 障害物描画の入力（左クリック＆ドラッグ）を処理
 	_handle_obstacle_input(event)
+	# 波源追加の入力（右クリック）を処理
 	_handle_source_input(event)
 
+	# 'R'キーが押されたらシミュレーションをリセット
 	if event is InputEventKey and event.is_pressed() and event.keycode == KEY_R:
 		reset_simulation()
