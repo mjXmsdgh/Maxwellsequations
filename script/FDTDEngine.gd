@@ -13,9 +13,6 @@ const WAVE_FREQUENCY = 8.0 # 波の周波数（値を小さくすると波長が
 const OBSTACLE_VALUE: int = 1
 
 # --- プロパティ ---
-var grid_width: int
-var grid_height: int
-
 var time: float = 0.0 # シミュレーションの経過時間
 
 # FDTD法で使用する物理量を格納する配列
@@ -28,16 +25,14 @@ var center_idx: int # 波源の中心インデックス
 
 # --- 初期化 ---
 func initialize():
-	grid_width = GRID_WIDTH
-	grid_height = GRID_HEIGHT
-	var size = grid_width * grid_height
+	var size = GRID_WIDTH * GRID_HEIGHT
 
 	ez.resize(size)
 	hx.resize(size)
 	hy.resize(size)
 	obstacle_map.resize(size)
 
-	center_idx = (grid_height / 2) * grid_width + (grid_width / 2)
+	center_idx = (GRID_HEIGHT / 2) * GRID_WIDTH + (GRID_WIDTH / 2)
 	reset()
 
 # --- 公開メソッド (API) ---
@@ -54,9 +49,9 @@ func reset():
 	time = 0.0
 
 func add_source(grid_x: int, grid_y: int, strength: float):
-	if grid_x < 1 or grid_x >= grid_width - 1 or grid_y < 1 or grid_y >= grid_height - 1:
+	if grid_x < 1 or grid_x >= GRID_WIDTH - 1 or grid_y < 1 or grid_y >= GRID_HEIGHT - 1:
 		return
-	var idx = grid_y * grid_width + grid_x
+	var idx = grid_y * GRID_WIDTH + grid_x
 	ez[idx] = strength
 
 func add_obstacle_line(p1: Vector2i, p2: Vector2i):
@@ -72,8 +67,8 @@ func add_obstacle_line(p1: Vector2i, p2: Vector2i):
 	var err = dx + dy
 
 	while true:
-		if x1 >= 0 and x1 < grid_width and y1 >= 0 and y1 < grid_height:
-			var idx = y1 * grid_width + x1
+		if x1 >= 0 and x1 < GRID_WIDTH and y1 >= 0 and y1 < GRID_HEIGHT:
+			var idx = y1 * GRID_WIDTH + x1
 			obstacle_map[idx] = OBSTACLE_VALUE
 
 		if x1 == x2 and y1 == y2:
@@ -92,24 +87,22 @@ func add_obstacle_line(p1: Vector2i, p2: Vector2i):
 func _update_physics():
 	_update_magnetic_field()
 	_update_electric_field()
+	# 中心に時間変化する波源を設置 (正弦波)
+	#ez[center_idx] = sin(time * WAVE_FREQUENCY)
 
 func _update_magnetic_field():
-	for y in range(1, grid_height - 1):
-		for x in range(1, grid_width - 1):
-			var idx = y * grid_width + x
-			hx[idx] = hx[idx] - COURANT_NUMBER * (ez[idx] - ez[idx - grid_width])
+	for y in range(1, GRID_HEIGHT - 1):
+		for x in range(1, GRID_WIDTH - 1):
+			var idx = y * GRID_WIDTH + x
+			hx[idx] = hx[idx] - COURANT_NUMBER * (ez[idx] - ez[idx - GRID_WIDTH])
 			hy[idx] = hy[idx] + COURANT_NUMBER * (ez[idx + 1] - ez[idx])
 
 func _update_electric_field():
-	for y in range(1, grid_height - 1):
-		for x in range(1, grid_width - 1):
-			var idx = y * grid_width + x
+	for y in range(1, GRID_HEIGHT - 1):
+		for x in range(1, GRID_WIDTH - 1):
+			var idx = y * GRID_WIDTH + x
 
-			# 波源は更新しない (ハードソースのため)
-			# if idx == center_idx:
-			# 	continue
-
-			ez[idx] = ez[idx] + COURANT_NUMBER * ((hy[idx] - hy[idx - 1]) - (hx[idx + grid_width] - hx[idx]))
+			ez[idx] = ez[idx] + COURANT_NUMBER * ((hy[idx] - hy[idx - 1]) - (hx[idx + GRID_WIDTH] - hx[idx]))
 
 			if obstacle_map[idx] == OBSTACLE_VALUE:
 				ez[idx] = 0.0

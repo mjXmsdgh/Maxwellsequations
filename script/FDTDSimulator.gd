@@ -6,10 +6,9 @@ class_name FDTDSimulator
 @export var click_strength: float = 5.0 # 右クリック時の波の強さ
 
 @export_category("Visualization")
-const OBSTACLE_DRAW_COLOR: int = 128
-const EZ_CLAMP_MIN: float = -1.0
+const OBSTACLE_ENCODE_VALUE: int = 128 # 障害物をテクスチャに書き込む際の値 (0-255)
+const EZ_CLAMP_MIN: float = -1.0 # 描画時にクランプするezの最小値
 const EZ_CLAMP_MAX: float = 1.0
-const GRAYSCALE_MAX: float = 255.0
 
 const INVALID_GRID_POS := Vector2i(-1, -1)
 
@@ -21,10 +20,10 @@ var engine: FDTDEngine
 # --- Getter Properties for External Access ---
 # ビジュアライザーなどの外部ノードが安全に参照できるようにプロパティを公開
 var grid_width: int:
-	get: return engine.grid_width if is_instance_valid(engine) else 0
+	get: return FDTDEngine.GRID_WIDTH if is_instance_valid(engine) else 0
 
 var grid_height: int:
-	get: return engine.grid_height if is_instance_valid(engine) else 0
+	get: return FDTDEngine.GRID_HEIGHT if is_instance_valid(engine) else 0
 
 var hx: PackedFloat32Array:
 	get: return engine.hx if is_instance_valid(engine) else PackedFloat32Array()
@@ -58,6 +57,7 @@ func _process(delta):
 
 # シミュレーション結果をテクスチャに描画する
 func _update_texture():
+	# L8(グレースケール)フォーマットなので、ピクセルごとに1バイト
 	var pixels = PackedByteArray()
 	pixels.resize(grid_width * grid_height)
 
@@ -66,20 +66,24 @@ func _update_texture():
 
 	for i in range(current_ez.size()):
 		if current_obstacle_map[i] == FDTDEngine.OBSTACLE_VALUE:
-			# 障害物は中間の灰色としてエンコード
-			pixels[i] = OBSTACLE_DRAW_COLOR
+			# 障害物はシェーダーが認識できるよう特定の値でエンコード
+			pixels[i] = OBSTACLE_ENCODE_VALUE
 		else:
-			# ezの値を EZ_CLAMP_MIN ~ EZ_CLAMP_MAX から 0 ~ GRAYSCALE_MAX の範囲に変換
-			var value = clampf(current_ez[i], EZ_CLAMP_MIN, EZ_CLAMP_MAX) # 値が大きくなりすぎないように制限
-			pixels[i] = int((value - EZ_CLAMP_MIN) / (EZ_CLAMP_MAX - EZ_CLAMP_MIN) * GRAYSCALE_MAX)
+			# ezの値を[-1, 1]から[0, 255]のグレースケール値に変換(エンコード)
+			var value = clampf(current_ez[i], EZ_CLAMP_MIN, EZ_CLAMP_MAX)
+			# 範囲変換: [-1, 1] -> [0, 2] -> [0, 1] -> [0, 255]
+			var encoded_value = int(((value - EZ_CLAMP_MIN) / (EZ_CLAMP_MAX - EZ_CLAMP_MIN)) * 255.0)
+			pixels[i] = encoded_value
 
 	image.set_data(grid_width, grid_height, false, Image.FORMAT_L8, pixels)
 	texture.update(image) # 既存のテクスチャを新しい画像データで更新
 
 
 func reset_simulation():
-	engine.reset()
-	# テクスチャをクリアして即時反映
+	
+	engine=FDTDEngine.new()
+	engine.initialize()
+
 	_update_texture()
 
 # マウスのグローバル座標をグリッド座標に変換するヘルパー関数
