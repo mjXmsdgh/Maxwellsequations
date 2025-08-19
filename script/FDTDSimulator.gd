@@ -21,6 +21,21 @@ var image: Image # シミュレーション結果を格納する画像データ
 var texture: ImageTexture # 画面に表示するためのテクスチャ
 
 var engine: FDTDEngine
+
+# --- Getter Properties for External Access ---
+# ビジュアライザーなどの外部ノードが安全に参照できるようにプロパティを公開
+var grid_width: int:
+	get: return engine.grid_width if is_instance_valid(engine) else 0
+
+var grid_height: int:
+	get: return engine.grid_height if is_instance_valid(engine) else 0
+
+var hx: PackedFloat32Array:
+	get: return engine.hx if is_instance_valid(engine) else PackedFloat32Array()
+
+var hy: PackedFloat32Array:
+	get: return engine.hy if is_instance_valid(engine) else PackedFloat32Array()
+
 var last_mouse_grid_pos: Vector2i = INVALID_GRID_POS # 最後に描画したマウスのグリッド座標
 
 

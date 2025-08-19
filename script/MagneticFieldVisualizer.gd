@@ -38,19 +38,20 @@ func _process(_delta):
 
 func _draw():
 	# simulatorと、その中のengineが準備できているか確認
-	if not is_instance_valid(simulator) or not is_instance_valid(simulator.engine):
+	if not is_instance_valid(simulator):
 		return
 
-	var engine = simulator.engine
-
 	# シミュレータから必要な情報を取得
-	var hx: PackedFloat32Array = engine.hx
-	var hy: PackedFloat32Array = engine.hy
+	var hx: PackedFloat32Array = simulator.hx
+	var hy: PackedFloat32Array = simulator.hy
 	if hx.is_empty() or hy.is_empty():
 		return
 
-	var grid_width: int = engine.grid_width
-	var grid_height: int = engine.grid_height
+	var grid_width: int = simulator.grid_width
+	var grid_height: int = simulator.grid_height
+
+	if grid_width == 0 or grid_height == 0:
+		return
 
 	var rect_size = texture_rect.size
 
