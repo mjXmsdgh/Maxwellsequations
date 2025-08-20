@@ -3,8 +3,8 @@ class_name FDTDEngine
 
 # --- 定数 ---
 # シミュレーション領域の定義
-const GRID_WIDTH = 512  # グリッドの幅
-const GRID_HEIGHT = 512 # グリッドの高さ
+const GRID_WIDTH = 256#512  # グリッドの幅
+const GRID_HEIGHT = 256#512 # グリッドの高さ
 
 # FDTD法の安定性を保つための係数 (クーラン数)
 const COURANT_NUMBER = 0.5
