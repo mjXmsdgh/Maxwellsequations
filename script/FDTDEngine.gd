@@ -14,6 +14,7 @@ const OBSTACLE_VALUE: int = 1
 
 # --- プロパティ ---
 var time: float = 0.0 # シミュレーションの経過時間
+var time_scale: float = 0.2 # シミュレーションの速度倍率
 
 # FDTD法で使用する物理量を格納する配列
 var ez: PackedFloat32Array # 電場 (Ez成分)
@@ -38,7 +39,7 @@ func initialize():
 # --- 公開メソッド (API) ---
 
 func step(delta: float):
-	time += delta
+	time += delta * time_scale
 	_update_physics()
 
 func reset():
@@ -91,18 +92,22 @@ func _update_physics():
 	#ez[center_idx] = sin(time * WAVE_FREQUENCY)
 
 func _update_magnetic_field():
+	var update_factor = COURANT_NUMBER * time_scale
 	for y in range(1, GRID_HEIGHT - 1):
 		for x in range(1, GRID_WIDTH - 1):
 			var idx = y * GRID_WIDTH + x
-			hx[idx] = hx[idx] - COURANT_NUMBER * (ez[idx] - ez[idx - GRID_WIDTH])
-			hy[idx] = hy[idx] + COURANT_NUMBER * (ez[idx + 1] - ez[idx])
+			# 更新量にtime_scaleを適用
+			hx[idx] = hx[idx] - update_factor * (ez[idx] - ez[idx - GRID_WIDTH])
+			hy[idx] = hy[idx] + update_factor * (ez[idx + 1] - ez[idx])
 
 func _update_electric_field():
+	var update_factor = COURANT_NUMBER * time_scale
 	for y in range(1, GRID_HEIGHT - 1):
 		for x in range(1, GRID_WIDTH - 1):
 			var idx = y * GRID_WIDTH + x
 
-			ez[idx] = ez[idx] + COURANT_NUMBER * ((hy[idx] - hy[idx - 1]) - (hx[idx + GRID_WIDTH] - hx[idx]))
+			# 更新量にtime_scaleを適用
+			ez[idx] = ez[idx] + update_factor * ((hy[idx] - hy[idx - 1]) - (hx[idx + GRID_WIDTH] - hx[idx]))
 
 			if obstacle_map[idx] == OBSTACLE_VALUE:
 				ez[idx] = 0.0
