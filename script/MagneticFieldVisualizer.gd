@@ -55,67 +55,66 @@ func _draw():
 	if grid_width == 0 or grid_height == 0:
 		return
 
-	var rect_size = texture_rect.size
+	var rect_size: Vector2 = texture_rect.size
 
 	# グリッド座標から描画座標への変換スケール
-	var coord_scale = rect_size / Vector2(grid_width, grid_height)
+	var coord_scale: Vector2 = rect_size / Vector2(grid_width, grid_height)
 
-	var arrowhead_angle_rad = deg_to_rad(arrowhead_angle_deg)
-
-	var max_h = 0.0
-	if auto_scale:
-		var max_h_sq = 0.0
-		# 磁場ベクトルを補間して、その長さの最大値(の2乗)を求める
-		# パフォーマンスのため、描画対象のグリッドのみをサンプリング
-		# 補間に伴う配列の範囲外アクセスを避けるため、ループ範囲を調整
-		for y_s in range(0, grid_height - 1, draw_step):
-			for x_s in range(1, grid_width, draw_step):
-				var s_idx = y_s * grid_width + x_s
-				# Hx, Hyをグリッド中心に補間
-				var hx_interp = (hx[s_idx] + hx[s_idx + grid_width]) * 0.5
-				var hy_interp = (hy[s_idx] + hy[s_idx - 1]) * 0.5
-				var h_sq = hx_interp * hx_interp + hy_interp * hy_interp
-				if h_sq > max_h_sq:
-					max_h_sq = h_sq
-		if max_h_sq > MIN_VECTOR_LENGTH_SQ:
-			max_h = sqrt(max_h_sq)
-
-	# グリッドを間引きながらループして、パフォーマンスを確保
+	# 描画するベクトルのデータを準備（計算の重複を避けるため）
+	var vectors_to_draw: Array[Dictionary] = []
 	# 補間に伴う配列の範囲外アクセスを避けるため、ループ範囲を調整
 	for y in range(0, grid_height - 1, draw_step):
 		for x in range(1, grid_width, draw_step):
 			var idx = y * grid_width + x
 
-			# Yeeグリッドのスタッガード配置を考慮し、磁場ベクトルをグリッド中心に補間する
-			# Hxは上下のグリッドから、Hyは左右のグリッドから平均をとる
+			# Yeeグリッドのスタッガード配置を考慮し、磁場ベクトルをグリッド中心に補間
 			var hx_interp = (hx[idx] + hx[idx + grid_width]) * 0.5
 			var hy_interp = (hy[idx] + hy[idx - 1]) * 0.5
-
 			var vec_h = Vector2(hx_interp, hy_interp)
-			var vec_h_len_sq = vec_h.length_squared()
 
-			# ベクトルの長さが非常に小さい場合は描画をスキップして負荷を軽減
-			if vec_h_len_sq < MIN_VECTOR_LENGTH_SQ:
+			# ベクトルの長さが非常に小さい場合はスキップ
+			if vec_h.length_squared() < MIN_VECTOR_LENGTH_SQ:
 				continue
 
 			var start_pos = Vector2(x, y) * coord_scale
+			vectors_to_draw.append({"vec": vec_h, "pos": start_pos})
+
+	if vectors_to_draw.is_empty():
+		return
+
+	var max_h = 0.0
+	if auto_scale:
+		var max_h_sq = 0.0
+		# 準備したデータから最大値(の2乗)を求める
+		for v_data in vectors_to_draw:
+			max_h_sq = max(max_h_sq, v_data.vec.length_squared())
+
+		if max_h_sq > MIN_VECTOR_LENGTH_SQ:
+			max_h = sqrt(max_h_sq)
+
+	var arrowhead_angle_rad = deg_to_rad(arrowhead_angle_deg)
+
+	# 準備したデータを使ってベクトルを描画
+	for v_data in vectors_to_draw:
+			var start_pos: Vector2 = v_data.pos
+			var vec_h: Vector2 = v_data.vec
 			var end_pos: Vector2
 
 			if auto_scale and max_h > 0:
 				# 最大長を基準に長さをスケーリング
-				var length = sqrt(vec_h_len_sq) / max_h * vector_scale
+				var length = vec_h.length() / max_h * vector_scale
 				end_pos = start_pos + vec_h.normalized() * length
 			else:
 				# 固定倍率でスケーリング
 				end_pos = start_pos + vec_h * vector_scale
 
 			# ベクトルの本体（線）を描画
-			draw_line(start_pos, end_pos, vector_color, 1.0, true)
+			draw_line(start_pos, end_pos, vector_color, 1.0, true) # antialiased = true
 
 			# 矢印の先端を描画
 			if arrowhead_draw:
 				var direction = (end_pos - start_pos).normalized()
 				var p1 = end_pos - direction.rotated(arrowhead_angle_rad) * arrowhead_length
 				var p2 = end_pos - direction.rotated(-arrowhead_angle_rad) * arrowhead_length
-				draw_line(end_pos, p1, vector_color, 1.0, true)
-				draw_line(end_pos, p2, vector_color, 1.0, true)
+				draw_line(end_pos, p1, vector_color, 1.0, true) # antialiased = true
+				draw_line(end_pos, p2, vector_color, 1.0, true) # antialiased = true

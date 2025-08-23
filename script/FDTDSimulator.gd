@@ -5,6 +5,11 @@ class_name FDTDSimulator
 @export_category("Simulation Parameters")
 @export var click_strength: float = 5.0 # 右クリック時の波の強さ
 
+@export_category("Plane Wave Source")
+@export var source_enabled: bool = true
+@export var source_frequency: float = 5.0 # 波源の周波数 (単位はシミュレーションのスケールに依存)
+@export_range(0, 1000) var source_x_position: int = 20   # 波源のX座標（グリッド単位）
+
 @export_category("Visualization")
 const OBSTACLE_ENCODE_VALUE: int = 128 # 障害物をテクスチャに書き込む際の値 (0-255)
 const EZ_CLAMP_MIN: float = -1.0 # 描画時にクランプするezの最小値
@@ -16,6 +21,8 @@ var image: Image # シミュレーション結果を格納する画像データ
 var texture: ImageTexture # 画面に表示するためのテクスチャ
 
 var engine: FDTDEngine
+
+var _time: float = 0.0 # シミュレーション時間
 
 # --- Getter Properties for External Access ---
 # ビジュアライザーなどの外部ノードが安全に参照できるようにプロパティを公開
@@ -49,11 +56,34 @@ func _ready():
 	_update_texture()
 
 func _process(delta):
+	# シミュレーション時間を更新
+	# FDTDでは通常、Courantの安定化条件を満たす固定の時間ステップdtを使います。
+	# engine.step()内でdeltaが使われていない場合は、ここで固定値を加算する方が正確です。
+	_time += delta
+
 	# 物理演算の更新
 	engine.step(delta)
+
+	# 波源の追加 (物理演算の更新後)
+	if source_enabled:
+		_add_plane_wave_source()
+
 	# テクスチャの更新
 	_update_texture()
 
+
+func _add_plane_wave_source():
+	# グリッドの範囲外なら何もしない
+	if source_x_position <= 0 or source_x_position >= grid_width - 1:
+		return
+
+	# 時間と共に振動する波源の値を計算
+	var angular_frequency = 2.0 * PI * source_frequency
+	var source_value = sin(angular_frequency * _time)
+
+	# 指定したX座標のラインに沿って、Ezに波源の値を加算する（ソフトソース）
+	for y in range(grid_height):
+		engine.add_source(source_x_position, y, source_value)
 
 # シミュレーション結果をテクスチャに描画する
 func _update_texture():
@@ -83,6 +113,7 @@ func reset_simulation():
 	
 	engine=FDTDEngine.new()
 	engine.initialize()
+	_time = 0.0 # 波源の時間をリセット
 
 	_update_texture()
 
