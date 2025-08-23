@@ -65,24 +65,33 @@ func _draw():
 	var max_h = 0.0
 	if auto_scale:
 		var max_h_sq = 0.0
-		# 全グリッドを調べて磁場ベクトルの長さの最大値(の2乗)を求める
-		# パフォーマンスのため、描画対象のグリッドのみをサンプリングする
-		for y_s in range(0, grid_height, draw_step):
-			for x_s in range(0, grid_width, draw_step):
+		# 磁場ベクトルを補間して、その長さの最大値(の2乗)を求める
+		# パフォーマンスのため、描画対象のグリッドのみをサンプリング
+		# 補間に伴う配列の範囲外アクセスを避けるため、ループ範囲を調整
+		for y_s in range(0, grid_height - 1, draw_step):
+			for x_s in range(1, grid_width, draw_step):
 				var s_idx = y_s * grid_width + x_s
-				var h_sq = hx[s_idx] * hx[s_idx] + hy[s_idx] * hy[s_idx]
+				# Hx, Hyをグリッド中心に補間
+				var hx_interp = (hx[s_idx] + hx[s_idx + grid_width]) * 0.5
+				var hy_interp = (hy[s_idx] + hy[s_idx - 1]) * 0.5
+				var h_sq = hx_interp * hx_interp + hy_interp * hy_interp
 				if h_sq > max_h_sq:
 					max_h_sq = h_sq
 		if max_h_sq > MIN_VECTOR_LENGTH_SQ:
 			max_h = sqrt(max_h_sq)
 
 	# グリッドを間引きながらループして、パフォーマンスを確保
-	for y in range(0, grid_height, draw_step):
-		for x in range(0, grid_width, draw_step):
+	# 補間に伴う配列の範囲外アクセスを避けるため、ループ範囲を調整
+	for y in range(0, grid_height - 1, draw_step):
+		for x in range(1, grid_width, draw_step):
 			var idx = y * grid_width + x
 
-			# 磁場ベクトル H = (Hx, Hy)
-			var vec_h = Vector2(hx[idx], hy[idx])
+			# Yeeグリッドのスタッガード配置を考慮し、磁場ベクトルをグリッド中心に補間する
+			# Hxは上下のグリッドから、Hyは左右のグリッドから平均をとる
+			var hx_interp = (hx[idx] + hx[idx + grid_width]) * 0.5
+			var hy_interp = (hy[idx] + hy[idx - 1]) * 0.5
+
+			var vec_h = Vector2(hx_interp, hy_interp)
 			var vec_h_len_sq = vec_h.length_squared()
 
 			# ベクトルの長さが非常に小さい場合は描画をスキップして負荷を軽減
