@@ -55,19 +55,18 @@ func _ready():
 	# 最初のテクスチャ更新
 	_update_texture()
 
-func _process(delta):
+func _physics_process(delta):
 	# シミュレーション時間を更新
-	# FDTDでは通常、Courantの安定化条件を満たす固定の時間ステップdtを使います。
-	# engine.step()内でdeltaが使われていない場合は、ここで固定値を加算する方が正確です。
+	# _physics_processは固定時間ステップで呼ばれるため、FDTD計算に適しています。
 	_time += delta
 
 	# 物理演算の更新
 	engine.step(delta)
-
+	
 	# 波源の追加 (物理演算の更新後)
 	if source_enabled:
 		_add_plane_wave_source()
-
+	
 	# テクスチャの更新
 	_update_texture()
 
