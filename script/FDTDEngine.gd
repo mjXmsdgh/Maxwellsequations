@@ -17,10 +17,10 @@ var time: float = 0.0 # シミュレーションの経過時間
 var time_scale: float = 0.2 # シミュレーションの速度倍率
 
 # FDTD法で使用する物理量を格納する配列
-var ez: PackedFloat32Array # 電場 (Ez成分)
-var hx: PackedFloat32Array # 磁場 (Hx成分)
-var hy: PackedFloat32Array # 磁場 (Hy成分)
-var obstacle_map: PackedByteArray
+var ez: PackedFloat32Array = PackedFloat32Array() # 電場 (Ez成分)
+var hx: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hx成分)
+var hy: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hy成分)
+var obstacle_map: PackedByteArray = PackedByteArray()
 
 var center_idx: int # 波源の中心インデックス
 
