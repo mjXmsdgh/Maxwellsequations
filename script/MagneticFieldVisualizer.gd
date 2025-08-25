@@ -62,13 +62,15 @@ func _draw():
 
 	# 描画するベクトルのデータを準備（計算の重複を避けるため）
 	var vectors_to_draw: Array[Dictionary] = []
-	# 補間に伴う配列の範囲外アクセスを避けるため、ループ範囲を調整
-	for y in range(0, grid_height - 1, draw_step):
+	# 補間に伴う配列の範囲外アクセスを避けるため、ループ範囲を y=1 から開始
+	for y in range(1, grid_height - 1, draw_step):
 		for x in range(1, grid_width, draw_step):
 			var idx = y * grid_width + x
 
-			# Yeeグリッドのスタッガード配置を考慮し、磁場ベクトルをグリッド中心に補間
-			var hx_interp = (hx[idx] + hx[idx + grid_width]) * 0.5
+			# Yeeグリッドのスタッガード配置を考慮し、磁場ベクトルをEzグリッド中心(i,j)に補間
+			# Hx(i,j) = ( Hx(i, j+1/2) + Hx(i, j-1/2) ) / 2
+			# Hx(i, j+1/2) -> hx[idx], Hx(i, j-1/2) -> hx[idx - grid_width]
+			var hx_interp = (hx[idx] + hx[idx - grid_width]) * 0.5
 			var hy_interp = (hy[idx] + hy[idx - 1]) * 0.5
 			var vec_h = Vector2(hx_interp, hy_interp)
 

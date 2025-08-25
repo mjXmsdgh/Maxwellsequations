@@ -59,14 +59,19 @@ func test_magnetic_field_calculation() -> bool:
 	# Ez(source_pos) = 1.0 によって、周囲のHxとHyが理論通りに変化したかを確認する。
 	var update_factor = FDTDEngine.COURANT_NUMBER * engine.time_scale
 	
-	# Hxの期待値: Hx(i, j+1/2)の更新は -C * (Ez(i, j+1) - Ez(i, j))
-	# hx[j*w+i] は Hx(i, j-1/2) に対応
-	var hx_idx_below = source_pos.y * grid_width + source_pos.x
-	var expected_hx_below = -update_factor * (source_strength - 0.0)
+	# Hxの期待値: hx[j*w+i] は Hx(i, j+1/2) に対応する。
+	# 更新式: Hx(i, j+1/2) = Hx(i, j+1/2) - C * (Ez(i, j+1) - Ez(i, j))
+	
+	# Hx below source: Hx(i, j-1/2) -> hx[(j-1)*w+i]
+	# この更新は Ez(i,j) と Ez(i,j-1) を使う
+	var hx_idx_below = (source_pos.y - 1) * grid_width + source_pos.x
+	var expected_hx_below = -update_factor * (source_strength - 0.0) # -C * (Ez(i,j) - Ez(i,j-1))
 	check.call(engine.hx[hx_idx_below], expected_hx_below, "Hx calculation (below source)")
 
-	var hx_idx_above = (source_pos.y + 1) * grid_width + source_pos.x # Hx(i, j+1/2)
-	var expected_hx_above = -update_factor * (0.0 - source_strength)
+	# Hx above source: Hx(i, j+1/2) -> hx[j*w+i]
+	# この更新は Ez(i,j+1) と Ez(i,j) を使う
+	var hx_idx_above = source_pos.y * grid_width + source_pos.x
+	var expected_hx_above = -update_factor * (0.0 - source_strength) # -C * (Ez(i,j+1) - Ez(i,j))
 	check.call(engine.hx[hx_idx_above], expected_hx_above, "Hx calculation (above source)")
 
 	# Hyの期待値: Hy(i+1/2, j)の更新は C * (Ez(i+1, j) - Ez(i, j))
@@ -79,9 +84,9 @@ func test_magnetic_field_calculation() -> bool:
 	var expected_hy_right = update_factor * (0.0 - source_strength)
 	check.call(engine.hy[hy_idx_right], expected_hy_right, "Hy calculation (right of source)")
 
-	if not all_tests_passed: return false
-	print("  [PASS] FDTDEngine magnetic field calculation logic.")
-	return true
+	if all_tests_passed:
+		print("  [PASS] FDTDEngine magnetic field calculation logic.")
+	return all_tests_passed
 
 
 # FDTDEngineの電場計算ロジックを検証するテスト
@@ -124,18 +129,20 @@ func test_electric_field_calculation() -> bool:
 	# --- Test Case 2: Curl from Hx ---
 	var engine_hx = FDTDEngine.new()
 	engine_hx.initialize()
-	engine_hx.hx[test_idx] = h_strength # Corresponds to Hx(i, j-1/2)
+	# hx[test_idx] は Hx(i, j+1/2) に対応
+	engine_hx.hx[test_idx] = h_strength
 	engine_hx._update_electric_field()
 	
-	# Ez(i,j) update: -C * (Hx(i,j+1/2) - Hx(i,j-1/2)) -> -C * (hx[(j+1)*w+i] - hx[j*w+i])
-	# Ez(i,j) at test_idx gets a positive contribution from hx[test_idx] (i.e., from Hx(i, j-1/2))
-	var expected_ez_from_hx = update_factor * h_strength
-	check.call(engine_hx.ez[test_idx], expected_ez_from_hx, "Ez(i,j) from Hx(i,j-1/2)")
+	# Ez(i,j)の更新式: ... - C * (Hx(i, j+1/2) - Hx(i, j-1/2))
+	# -> ... - C * (hx[j*w+i] - hx[(j-1)*w+i])
 
-	# Ez(i,j-1) update: -C * (Hx(i,j-1/2) - Hx(i,j-3/2)) -> -C * (hx[j*w+i] - hx[(j-1)*w+i])
-	# Ez(i,j-1) at test_idx-grid_width gets a negative contribution from hx[test_idx] (i.e., from Hx(i, j-1/2))
-	var expected_ez_from_hx_below = -update_factor * h_strength
-	check.call(engine_hx.ez[test_idx - grid_width], expected_ez_from_hx_below, "Ez(i,j-1) from Hx(i,j-1/2)")
+	# Ez(i,j) at test_idx is affected negatively by hx[test_idx] (which is Hx(i, j+1/2))
+	var expected_ez_from_hx = -update_factor * h_strength
+	check.call(engine_hx.ez[test_idx], expected_ez_from_hx, "Ez(i,j) from Hx(i,j+1/2)")
+
+	# Ez(i,j+1) at test_idx+grid_width is affected positively by hx[test_idx] (which is Hx(i, j+1/2))
+	var expected_ez_at_pos_plus_1_y = update_factor * h_strength
+	check.call(engine_hx.ez[test_idx + grid_width], expected_ez_at_pos_plus_1_y, "Ez(i,j+1) from Hx(i,j+1/2)")
 
 	if not all_tests_passed:
 		printerr("  -> Sub-test FAILED: Electric field calculation (from Hx).")
@@ -160,17 +167,18 @@ func test_visualizer_interpolation() -> bool:
 	var test_idx = test_pos.y * grid_width + test_pos.x
 	
 	# 補間に使う値を設定
-	var hx_val1 = 0.8
-	var hx_val2 = 0.2
+	var hx_val1 = 0.8 # Corresponds to hx[test_idx] or Hx(i, j+1/2)
+	var hx_val2 = 0.2 # Corresponds to hx[test_idx - grid_width] or Hx(i, j-1/2)
 	var hy_val1 = 0.6
 	var hy_val2 = 0.4
 	hx[test_idx] = hx_val1
-	hx[test_idx + grid_width] = hx_val2
+	hx[test_idx - grid_width] = hx_val2
 	hy[test_idx] = hy_val1
 	hy[test_idx - 1] = hy_val2
 
 	# 2. 実行: Visualizerの補間ロジックを直接実行
-	var hx_interp = (hx[test_idx] + hx[test_idx + grid_width]) * 0.5
+	# 新しいロジック: Hx(i,j) = ( Hx(i, j+1/2) + Hx(i, j-1/2) ) / 2
+	var hx_interp = (hx[test_idx] + hx[test_idx - grid_width]) * 0.5
 	var hy_interp = (hy[test_idx] + hy[test_idx - 1]) * 0.5
 	
 	# 3. 検証
@@ -186,6 +194,6 @@ func test_visualizer_interpolation() -> bool:
 	check.call(hx_interp, expected_hx_interp, "Visualizer Hx interpolation")
 	check.call(hy_interp, expected_hy_interp, "Visualizer Hy interpolation")
 
-	if not all_tests_passed: return false
-	print("  [PASS] MagneticFieldVisualizer interpolation logic.")
-	return true
+	if all_tests_passed:
+		print("  [PASS] MagneticFieldVisualizer interpolation logic.")
+	return all_tests_passed
