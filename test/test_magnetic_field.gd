@@ -7,22 +7,26 @@ const FDTDEngine = preload("res://script/FDTDEngine.gd")
 # テストのメイン関数。シーン開始時に自動で実行される。
 func _ready():
 	print("--- Running FDTD Engine and Visualizer Logic Tests ---")
-	
-	var success = test_magnetic_field_calculation_and_interpolation()
-	
-	if success:
+
+	var all_tests_passed = true
+	# 各テスト関数を呼び出し、結果をANDで結合していく
+	all_tests_passed = test_magnetic_field_calculation() and all_tests_passed
+	all_tests_passed = test_electric_field_calculation() and all_tests_passed
+	all_tests_passed = test_visualizer_interpolation() and all_tests_passed
+
+	if all_tests_passed:
 		print("--- All tests passed successfully! ---")
 	else:
-		# エラーログはテスト関数内で出力される
+		# エラーログは各テスト関数内で出力される
 		push_error("--- One or more tests FAILED. Check the output for details. ---")
-		
+
 	# テストが終わったら自動でGodotを終了する
 	get_tree().quit()
 
 
-# FDTDEngineの計算と、Visualizerの補間ロジックを検証するテスト
-func test_magnetic_field_calculation_and_interpolation() -> bool:
-	print("Running test: test_magnetic_field_calculation_and_interpolation")
+# FDTDEngineの磁場計算ロジックを検証するテスト
+func test_magnetic_field_calculation() -> bool:
+	print("Running test: test_magnetic_field_calculation")
 
 	# 1. セットアップ (Setup)
 	# ---------------------
@@ -31,7 +35,7 @@ func test_magnetic_field_calculation_and_interpolation() -> bool:
 
 	var grid_width = FDTDEngine.GRID_WIDTH
 	# テストの再現性を高めるため、グリッド中央に波源を置く
-	var source_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2)
+	var source_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2) # i, j
 	var source_strength = 1.0
 	
 	# シミュレーションのコアロジックを直接テストするため、既知の状態を直接作り出す。
@@ -51,48 +55,137 @@ func test_magnetic_field_calculation_and_interpolation() -> bool:
 		if not is_equal_approx(value, expected):
 			printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
 			all_tests_passed = false # 親スコープの変数をキャプチャ
-
-	# --- 3a. FDTDEngineの磁場計算ロジックを検証 ---
+	
 	# Ez(source_pos) = 1.0 によって、周囲のHxとHyが理論通りに変化したかを確認する。
 	var update_factor = FDTDEngine.COURANT_NUMBER * engine.time_scale
 	
 	# Hxの期待値: Hx(i, j+1/2)の更新は -C * (Ez(i, j+1) - Ez(i, j))
+	# hx[j*w+i] は Hx(i, j-1/2) に対応
 	var hx_idx_below = source_pos.y * grid_width + source_pos.x
 	var expected_hx_below = -update_factor * (source_strength - 0.0)
 	check.call(engine.hx[hx_idx_below], expected_hx_below, "Hx calculation (below source)")
 
-	var hx_idx_above = (source_pos.y + 1) * grid_width + source_pos.x
+	var hx_idx_above = (source_pos.y + 1) * grid_width + source_pos.x # Hx(i, j+1/2)
 	var expected_hx_above = -update_factor * (0.0 - source_strength)
 	check.call(engine.hx[hx_idx_above], expected_hx_above, "Hx calculation (above source)")
 
 	# Hyの期待値: Hy(i+1/2, j)の更新は C * (Ez(i+1, j) - Ez(i, j))
-	var hy_idx_left = source_pos.y * grid_width + source_pos.x - 1
+	# hy[j*w+i] は Hy(i+1/2, j) に対応
+	var hy_idx_left = source_pos.y * grid_width + source_pos.x - 1 # Hy(i-1/2, j)
 	var expected_hy_left = update_factor * (source_strength - 0.0)
 	check.call(engine.hy[hy_idx_left], expected_hy_left, "Hy calculation (left of source)")
 	
-	var hy_idx_right = source_pos.y * grid_width + source_pos.x
+	var hy_idx_right = source_pos.y * grid_width + source_pos.x # Hy(i+1/2, j)
 	var expected_hy_right = update_factor * (0.0 - source_strength)
 	check.call(engine.hy[hy_idx_right], expected_hy_right, "Hy calculation (right of source)")
 
 	if not all_tests_passed: return false
 	print("  [PASS] FDTDEngine magnetic field calculation logic.")
+	return true
 
-	# --- 3b. MagneticFieldVisualizerの補間ロジックを検証 ---
-	# 点(source_pos)における磁場ベクトルを補間した結果が正しいか検証する
-	var test_idx = source_pos.y * grid_width + source_pos.x
+
+# FDTDEngineの電場計算ロジックを検証するテスト
+func test_electric_field_calculation() -> bool:
+	print("Running test: test_electric_field_calculation")
+
+	var all_tests_passed = true
+	var check = func(value, expected, message):
+		if not is_equal_approx(value, expected):
+			printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
+			all_tests_passed = false
+
+	var grid_width = FDTDEngine.GRID_WIDTH
+	var test_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2)
+	var test_idx = test_pos.y * grid_width + test_pos.x
+	var h_strength = 1.0
+	var update_factor = FDTDEngine.COURANT_NUMBER * FDTDEngine.new().time_scale
+
+	# --- Test Case 1: Curl from Hy ---
+	var engine_hy = FDTDEngine.new()
+	engine_hy.initialize()
+	engine_hy.hy[test_idx] = h_strength # Corresponds to Hy(i+1/2, j)
+	engine_hy._update_electric_field()
+
+	# Ez(i,j) update: C * (Hy(i+1/2,j) - Hy(i-1/2,j)) -> C * (hy[j*w+i] - hy[j*w+i-1])
+	# Ez(i,j) at test_idx is affected positively by hy[test_idx]
+	var expected_ez_at_pos = update_factor * h_strength
+	check.call(engine_hy.ez[test_idx], expected_ez_at_pos, "Ez(i,j) from Hy(i+1/2,j)")
+
+	# Ez(i+1,j) update: C * (Hy(i+3/2,j) - Hy(i+1/2,j)) -> C * (hy[j*w+i+1] - hy[j*w+i])
+	# Ez(i+1,j) at test_idx+1 is affected negatively by hy[test_idx]
+	var expected_ez_at_pos_plus_1 = -update_factor * h_strength
+	check.call(engine_hy.ez[test_idx + 1], expected_ez_at_pos_plus_1, "Ez(i+1,j) from Hy(i+1/2,j)")
+
+	if not all_tests_passed:
+		printerr("  -> Sub-test FAILED: Electric field calculation (from Hy).")
+		return false
+	print("  [PASS] Electric field calculation (from Hy).")
+
+	# --- Test Case 2: Curl from Hx ---
+	var engine_hx = FDTDEngine.new()
+	engine_hx.initialize()
+	engine_hx.hx[test_idx] = h_strength # Corresponds to Hx(i, j-1/2)
+	engine_hx._update_electric_field()
 	
-	# Visualizerの補間ロジック (元の正しいコード)
-	var hx_interp = (engine.hx[test_idx] + engine.hx[test_idx + grid_width]) * 0.5
-	var hy_interp = (engine.hy[test_idx] + engine.hy[test_idx - 1]) * 0.5
+	# Ez(i,j) update: -C * (Hx(i,j+1/2) - Hx(i,j-1/2)) -> -C * (hx[(j+1)*w+i] - hx[j*w+i])
+	# Ez(i,j) at test_idx gets a positive contribution from hx[test_idx] (i.e., from Hx(i, j-1/2))
+	var expected_ez_from_hx = update_factor * h_strength
+	check.call(engine_hx.ez[test_idx], expected_ez_from_hx, "Ez(i,j) from Hx(i,j-1/2)")
+
+	# Ez(i,j-1) update: -C * (Hx(i,j-1/2) - Hx(i,j-3/2)) -> -C * (hx[j*w+i] - hx[(j-1)*w+i])
+	# Ez(i,j-1) at test_idx-grid_width gets a negative contribution from hx[test_idx] (i.e., from Hx(i, j-1/2))
+	var expected_ez_from_hx_below = -update_factor * h_strength
+	check.call(engine_hx.ez[test_idx - grid_width], expected_ez_from_hx_below, "Ez(i,j-1) from Hx(i,j-1/2)")
+
+	if not all_tests_passed:
+		printerr("  -> Sub-test FAILED: Electric field calculation (from Hx).")
+		return false
+	print("  [PASS] Electric field calculation (from Hx).")
+
+	return true
+
+
+# MagneticFieldVisualizerの補間ロジックを検証するテスト
+func test_visualizer_interpolation() -> bool:
+	print("Running test: test_visualizer_interpolation")
+
+	# 1. セットアップ: 既知の磁場データを作成
+	var grid_width = FDTDEngine.GRID_WIDTH
+	var hx = PackedFloat32Array()
+	hx.resize(grid_width * FDTDEngine.GRID_HEIGHT)
+	var hy = PackedFloat32Array()
+	hy.resize(grid_width * FDTDEngine.GRID_HEIGHT)
+
+	var test_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2)
+	var test_idx = test_pos.y * grid_width + test_pos.x
 	
-	# 期待値の計算
-	var expected_hx_interp = (expected_hx_below + expected_hx_above) * 0.5
-	var expected_hy_interp = (expected_hy_right + expected_hy_left) * 0.5
+	# 補間に使う値を設定
+	var hx_val1 = 0.8
+	var hx_val2 = 0.2
+	var hy_val1 = 0.6
+	var hy_val2 = 0.4
+	hx[test_idx] = hx_val1
+	hx[test_idx + grid_width] = hx_val2
+	hy[test_idx] = hy_val1
+	hy[test_idx - 1] = hy_val2
+
+	# 2. 実行: Visualizerの補間ロジックを直接実行
+	var hx_interp = (hx[test_idx] + hx[test_idx + grid_width]) * 0.5
+	var hy_interp = (hy[test_idx] + hy[test_idx - 1]) * 0.5
+	
+	# 3. 検証
+	var all_tests_passed = true
+	var check = func(value, expected, message):
+		if not is_equal_approx(value, expected):
+			printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
+			all_tests_passed = false
+
+	var expected_hx_interp = (hx_val1 + hx_val2) * 0.5
+	var expected_hy_interp = (hy_val1 + hy_val2) * 0.5
 	
 	check.call(hx_interp, expected_hx_interp, "Visualizer Hx interpolation")
 	check.call(hy_interp, expected_hy_interp, "Visualizer Hy interpolation")
 
 	if not all_tests_passed: return false
 	print("  [PASS] MagneticFieldVisualizer interpolation logic.")
-	
 	return true
