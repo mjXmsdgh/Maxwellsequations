@@ -11,7 +11,8 @@ func _ready():
 	var all_tests_passed = true
 	# 各テスト関数を呼び出し、結果をANDで結合していく
 	all_tests_passed = test_magnetic_field_calculation() and all_tests_passed
-	all_tests_passed = test_electric_field_calculation() and all_tests_passed
+	all_tests_passed = test_electric_field_from_hy() and all_tests_passed
+	all_tests_passed = test_electric_field_from_hx() and all_tests_passed
 	all_tests_passed = test_visualizer_interpolation() and all_tests_passed
 
 	if all_tests_passed:
@@ -89,9 +90,48 @@ func test_magnetic_field_calculation() -> bool:
 	return all_tests_passed
 
 
-# FDTDEngineの電場計算ロジックを検証するテスト
-func test_electric_field_calculation() -> bool:
-	print("Running test: test_electric_field_calculation")
+# FDTDEngineの電場計算ロジックを検証するテスト (Hyからの寄与)
+func test_electric_field_from_hy() -> bool:
+	print("Running test: test_electric_field_from_hy")
+
+	var all_tests_passed = true
+	var check = func(value, expected, message):
+		if not is_equal_approx(value, expected):
+			printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
+			all_tests_passed = false
+
+	# --- セットアップ ---
+	var grid_width = FDTDEngine.GRID_WIDTH
+	var test_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2)
+	var test_idx = test_pos.y * grid_width + test_pos.x
+	var h_strength = 1.0
+
+	# --- 実行 ---
+	var engine = FDTDEngine.new()
+	engine.initialize()
+	var update_factor = FDTDEngine.COURANT_NUMBER * engine.time_scale
+	engine.hy[test_idx] = h_strength # Corresponds to Hy(i+1/2, j)
+	engine._update_electric_field()
+
+	# --- 検証 ---
+	# Ez(i,j) update: C * (Hy(i+1/2,j) - Hy(i-1/2,j)) -> C * (hy[j*w+i] - hy[j*w+i-1])
+	# Ez(i,j) at test_idx is affected positively by hy[test_idx]
+	var expected_ez_at_pos = update_factor * h_strength
+	check.call(engine.ez[test_idx], expected_ez_at_pos, "Ez(i,j) from Hy(i+1/2,j)")
+
+	# Ez(i+1,j) update: C * (Hy(i+3/2,j) - Hy(i+1/2,j)) -> C * (hy[j*w+i+1] - hy[j*w+i])
+	# Ez(i+1,j) at test_idx+1 is affected negatively by hy[test_idx]
+	var expected_ez_at_pos_plus_1 = -update_factor * h_strength
+	check.call(engine.ez[test_idx + 1], expected_ez_at_pos_plus_1, "Ez(i+1,j) from Hy(i+1/2,j)")
+
+	if all_tests_passed:
+		print("  [PASS] Electric field calculation (from Hy).")
+	return all_tests_passed
+
+
+# FDTDEngineの電場計算ロジックを検証するテスト (Hxからの寄与)
+func test_electric_field_from_hx() -> bool:
+	print("Running test: test_electric_field_from_hx")
 
 	var all_tests_passed = true
 	var check = func(value, expected, message):
@@ -103,53 +143,24 @@ func test_electric_field_calculation() -> bool:
 	var test_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2)
 	var test_idx = test_pos.y * grid_width + test_pos.x
 	var h_strength = 1.0
-	var update_factor = FDTDEngine.COURANT_NUMBER * FDTDEngine.new().time_scale
 
-	# --- Test Case 1: Curl from Hy ---
-	var engine_hy = FDTDEngine.new()
-	engine_hy.initialize()
-	engine_hy.hy[test_idx] = h_strength # Corresponds to Hy(i+1/2, j)
-	engine_hy._update_electric_field()
-
-	# Ez(i,j) update: C * (Hy(i+1/2,j) - Hy(i-1/2,j)) -> C * (hy[j*w+i] - hy[j*w+i-1])
-	# Ez(i,j) at test_idx is affected positively by hy[test_idx]
-	var expected_ez_at_pos = update_factor * h_strength
-	check.call(engine_hy.ez[test_idx], expected_ez_at_pos, "Ez(i,j) from Hy(i+1/2,j)")
-
-	# Ez(i+1,j) update: C * (Hy(i+3/2,j) - Hy(i+1/2,j)) -> C * (hy[j*w+i+1] - hy[j*w+i])
-	# Ez(i+1,j) at test_idx+1 is affected negatively by hy[test_idx]
-	var expected_ez_at_pos_plus_1 = -update_factor * h_strength
-	check.call(engine_hy.ez[test_idx + 1], expected_ez_at_pos_plus_1, "Ez(i+1,j) from Hy(i+1/2,j)")
-
-	if not all_tests_passed:
-		printerr("  -> Sub-test FAILED: Electric field calculation (from Hy).")
-		return false
-	print("  [PASS] Electric field calculation (from Hy).")
-
-	# --- Test Case 2: Curl from Hx ---
-	var engine_hx = FDTDEngine.new()
-	engine_hx.initialize()
+	var engine = FDTDEngine.new()
+	engine.initialize()
+	var update_factor = FDTDEngine.COURANT_NUMBER * engine.time_scale
 	# hx[test_idx] は Hx(i, j+1/2) に対応
-	engine_hx.hx[test_idx] = h_strength
-	engine_hx._update_electric_field()
+	engine.hx[test_idx] = h_strength
+	engine._update_electric_field()
 	
 	# Ez(i,j)の更新式: ... - C * (Hx(i, j+1/2) - Hx(i, j-1/2))
-	# -> ... - C * (hx[j*w+i] - hx[(j-1)*w+i])
-
-	# Ez(i,j) at test_idx is affected negatively by hx[test_idx] (which is Hx(i, j+1/2))
 	var expected_ez_from_hx = -update_factor * h_strength
-	check.call(engine_hx.ez[test_idx], expected_ez_from_hx, "Ez(i,j) from Hx(i,j+1/2)")
+	check.call(engine.ez[test_idx], expected_ez_from_hx, "Ez(i,j) from Hx(i,j+1/2)")
 
-	# Ez(i,j+1) at test_idx+grid_width is affected positively by hx[test_idx] (which is Hx(i, j+1/2))
 	var expected_ez_at_pos_plus_1_y = update_factor * h_strength
-	check.call(engine_hx.ez[test_idx + grid_width], expected_ez_at_pos_plus_1_y, "Ez(i,j+1) from Hx(i,j+1/2)")
+	check.call(engine.ez[test_idx + grid_width], expected_ez_at_pos_plus_1_y, "Ez(i,j+1) from Hx(i,j+1/2)")
 
-	if not all_tests_passed:
-		printerr("  -> Sub-test FAILED: Electric field calculation (from Hx).")
-		return false
-	print("  [PASS] Electric field calculation (from Hx).")
-
-	return true
+	if all_tests_passed:
+		print("  [PASS] Electric field calculation (from Hx).")
+	return all_tests_passed
 
 
 # MagneticFieldVisualizerの補間ロジックを検証するテスト

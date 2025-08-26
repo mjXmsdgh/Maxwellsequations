@@ -17,12 +17,21 @@ var time: float = 0.0 # シミュレーションの経過時間
 var time_scale: float = 0.2 # シミュレーションの速度倍率
 
 # FDTD法で使用する物理量を格納する配列
-var ez: PackedFloat32Array = PackedFloat32Array() # 電場 (Ez成分)
-var hx: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hx成分)
-var hy: PackedFloat32Array = PackedFloat32Array() # 磁場 (Hy成分)
-var obstacle_map: PackedByteArray = PackedByteArray()
+var ez: PackedFloat32Array # 電場 (Ez成分)
+var hx: PackedFloat32Array # 磁場 (Hx成分)
+var hy: PackedFloat32Array # 磁場 (Hy成分)
+var obstacle_map: PackedByteArray
 
 var center_idx: int # 波源の中心インデックス
+
+# --- コンストラクタ ---
+func _init():
+	# 各インスタンスが固有の配列を持つように、ここで初期化する
+	# (クラスメンバとして初期化すると全インスタンスで共有されてしまうため)
+	ez = PackedFloat32Array()
+	hx = PackedFloat32Array()
+	hy = PackedFloat32Array()
+	obstacle_map = PackedByteArray()
 
 # --- 初期化 ---
 func initialize():
