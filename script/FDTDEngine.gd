@@ -102,16 +102,21 @@ func _update_physics():
 
 func _update_magnetic_field():
 	var update_factor = COURANT_NUMBER * time_scale
-	for y in range(1, GRID_HEIGHT - 1):
-		# Hxの更新: Hx(i, j+1/2)はEz(i, j+1)とEz(i, j)から計算される
-		# ループ範囲がHyと異なる場合があるが、ここでは簡単化のため同じループで処理
-		for x in range(1, GRID_WIDTH - 1): # 本来は for x in range(0, GRID_WIDTH -1)
+
+	# Hxの更新: Hx(i, j+1/2) = Hx(...) - C * (Ez(i, j+1) - Ez(i, j))
+	# ループ範囲: yは0からGRID_HEIGHT-2まで (ez[idx+GRID_WIDTH]にアクセスするため)
+	# xは0からGRID_WIDTH-1まで (Hxはグリッドの左右両端にも存在する)
+	for y in range(0, GRID_HEIGHT - 1):
+		for x in range(0, GRID_WIDTH):
 			var idx = y * GRID_WIDTH + x
-			# Hxの更新式を、より標準的なYeeグリッドの定義に修正
-			# Hx(i, j+1/2)の更新は -C * (Ez(i, j+1) - Ez(i, j))
 			hx[idx] = hx[idx] - update_factor * (ez[idx + GRID_WIDTH] - ez[idx])
-			# Hyの更新式は元々標準的な定義と一致していた
-			# Hy(i+1/2, j)の更新は C * (Ez(i+1, j) - Ez(i, j))
+
+	# Hyの更新: Hy(i+1/2, j) = Hy(...) + C * (Ez(i+1, j) - Ez(i, j))
+	# ループ範囲: yは0からGRID_HEIGHT-1まで (Hyはグリッドの上下両端にも存在する)
+	# xは0からGRID_WIDTH-2まで (ez[idx+1]にアクセスするため)
+	for y in range(0, GRID_HEIGHT):
+		for x in range(0, GRID_WIDTH - 1):
+			var idx = y * GRID_WIDTH + x
 			hy[idx] = hy[idx] + update_factor * (ez[idx + 1] - ez[idx])
 
 func _update_electric_field():

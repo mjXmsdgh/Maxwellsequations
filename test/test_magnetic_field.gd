@@ -8,14 +8,19 @@ const FDTDEngine = preload("res://script/FDTDEngine.gd")
 func _ready():
 	print("--- Running FDTD Engine and Visualizer Logic Tests ---")
 
+	var tests_to_run = [
+		test_hx_calculation,
+		test_hy_calculation,
+		test_electric_field_from_hy,
+		test_electric_field_from_hx,
+		test_visualizer_hx_interpolation,
+		test_visualizer_hy_interpolation,
+	]
+
 	var all_tests_passed = true
-	# 各テスト関数を呼び出し、結果をANDで結合していく
-	all_tests_passed = test_hx_calculation() and all_tests_passed
-	all_tests_passed = test_hy_calculation() and all_tests_passed
-	all_tests_passed = test_electric_field_from_hy() and all_tests_passed
-	all_tests_passed = test_electric_field_from_hx() and all_tests_passed
-	all_tests_passed = test_visualizer_hx_interpolation() and all_tests_passed
-	all_tests_passed = test_visualizer_hy_interpolation() and all_tests_passed
+	for test_func in tests_to_run:
+		# 各テスト関数を呼び出し、結果をANDで結合していく
+		all_tests_passed = test_func.call() and all_tests_passed
 
 	if all_tests_passed:
 		print("--- All tests passed successfully! ---")
@@ -27,28 +32,42 @@ func _ready():
 	get_tree().quit()
 
 
+# テストのアサーションを行うヘルパー関数
+func _check(value, expected, message) -> bool:
+	if not is_equal_approx(value, expected):
+		printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
+		return false
+	return true
+
+# 初期化済みのFDTDEngineインスタンスを作成するヘルパー関数
+func _create_initialized_engine() -> FDTDEngine:
+	var engine = FDTDEngine.new()
+	engine.initialize()
+	return engine
+
+# 中央に波源を持つ初期化済みFDTDEngineインスタンスを作成するヘルパー関数
+func _create_engine_with_central_source() -> FDTDEngine:
+	var engine = _create_initialized_engine()
+	var grid_width = FDTDEngine.GRID_WIDTH
+	var source_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2)
+	engine.ez[source_pos.y * grid_width + source_pos.x] = 1.0
+	return engine
+
+
 # FDTDEngineのHx磁場計算ロジックを検証するテスト
 func test_hx_calculation() -> bool:
 	print("Running test: test_hx_calculation")
 
 	# セットアップ: 中央にEz波源を置いたエンジンを準備
-	var engine = FDTDEngine.new()
-	engine.initialize()
+	var engine = _create_engine_with_central_source()
 	var grid_width = FDTDEngine.GRID_WIDTH
 	var source_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2)
-	var source_strength = 1.0
-	engine.ez[source_pos.y * grid_width + source_pos.x] = source_strength
 
 	# 実行: 磁場を1ステップ更新
 	engine._update_magnetic_field()
 
 	# 検証: Ez波源の上下のHxが理論通りに更新されたか確認
 	var all_tests_passed = true
-	var check = func(value, expected, message):
-		if not is_equal_approx(value, expected):
-			printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
-			all_tests_passed = false
-
 	var update_factor = FDTDEngine.COURANT_NUMBER * engine.time_scale
 
 	# Hxの期待値: hx[j*w+i] は Hx(i, j+1/2) に対応する。
@@ -57,14 +76,14 @@ func test_hx_calculation() -> bool:
 	# Hx below source: Hx(i, j-1/2) -> hx[(j-1)*w+i]
 	# この更新は Ez(i,j) と Ez(i,j-1) を使う
 	var hx_idx_below = (source_pos.y - 1) * grid_width + source_pos.x
-	var expected_hx_below = -update_factor * (source_strength - 0.0) # -C * (Ez(i,j) - Ez(i,j-1))
-	check.call(engine.hx[hx_idx_below], expected_hx_below, "Hx calculation (below source)")
+	var expected_hx_below = -update_factor * (1.0 - 0.0) # -C * (Ez(i,j) - Ez(i,j-1))
+	all_tests_passed = all_tests_passed and _check(engine.hx[hx_idx_below], expected_hx_below, "Hx calculation (below source)")
 
 	# Hx above source: Hx(i, j+1/2) -> hx[j*w+i]
 	# この更新は Ez(i,j+1) と Ez(i,j) を使う
 	var hx_idx_above = source_pos.y * grid_width + source_pos.x
-	var expected_hx_above = -update_factor * (0.0 - source_strength) # -C * (Ez(i,j+1) - Ez(i,j))
-	check.call(engine.hx[hx_idx_above], expected_hx_above, "Hx calculation (above source)")
+	var expected_hx_above = -update_factor * (0.0 - 1.0) # -C * (Ez(i,j+1) - Ez(i,j))
+	all_tests_passed = all_tests_passed and _check(engine.hx[hx_idx_above], expected_hx_above, "Hx calculation (above source)")
 
 	if all_tests_passed:
 		print("  [PASS] FDTDEngine Hx calculation logic.")
@@ -76,34 +95,26 @@ func test_hy_calculation() -> bool:
 	print("Running test: test_hy_calculation")
 
 	# セットアップ: 中央にEz波源を置いたエンジンを準備
-	var engine = FDTDEngine.new()
-	engine.initialize()
+	var engine = _create_engine_with_central_source()
 	var grid_width = FDTDEngine.GRID_WIDTH
 	var source_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2)
-	var source_strength = 1.0
-	engine.ez[source_pos.y * grid_width + source_pos.x] = source_strength
 
 	# 実行: 磁場を1ステップ更新
 	engine._update_magnetic_field()
 
 	# 検証: Ez波源の左右のHyが理論通りに更新されたか確認
 	var all_tests_passed = true
-	var check = func(value, expected, message):
-		if not is_equal_approx(value, expected):
-			printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
-			all_tests_passed = false
-
 	var update_factor = FDTDEngine.COURANT_NUMBER * engine.time_scale
 
 	# Hyの期待値: Hy(i+1/2, j)の更新は C * (Ez(i+1, j) - Ez(i, j))
 	# hy[j*w+i] は Hy(i+1/2, j) に対応
 	var hy_idx_left = source_pos.y * grid_width + source_pos.x - 1 # Hy(i-1/2, j)
-	var expected_hy_left = update_factor * (source_strength - 0.0)
-	check.call(engine.hy[hy_idx_left], expected_hy_left, "Hy calculation (left of source)")
+	var expected_hy_left = update_factor * (1.0 - 0.0)
+	all_tests_passed = all_tests_passed and _check(engine.hy[hy_idx_left], expected_hy_left, "Hy calculation (left of source)")
 	
 	var hy_idx_right = source_pos.y * grid_width + source_pos.x # Hy(i+1/2, j)
-	var expected_hy_right = update_factor * (0.0 - source_strength)
-	check.call(engine.hy[hy_idx_right], expected_hy_right, "Hy calculation (right of source)")
+	var expected_hy_right = update_factor * (0.0 - 1.0)
+	all_tests_passed = all_tests_passed and _check(engine.hy[hy_idx_right], expected_hy_right, "Hy calculation (right of source)")
 
 	if all_tests_passed:
 		print("  [PASS] FDTDEngine Hy calculation logic.")
@@ -114,11 +125,6 @@ func test_electric_field_from_hy() -> bool:
 	print("Running test: test_electric_field_from_hy")
 
 	var all_tests_passed = true
-	var check = func(value, expected, message):
-		if not is_equal_approx(value, expected):
-			printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
-			all_tests_passed = false
-
 	# --- セットアップ ---
 	var grid_width = FDTDEngine.GRID_WIDTH
 	var test_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2)
@@ -126,8 +132,7 @@ func test_electric_field_from_hy() -> bool:
 	var h_strength = 1.0
 
 	# --- 実行 ---
-	var engine = FDTDEngine.new()
-	engine.initialize()
+	var engine = _create_initialized_engine()
 	var update_factor = FDTDEngine.COURANT_NUMBER * engine.time_scale
 	engine.hy[test_idx] = h_strength # Corresponds to Hy(i+1/2, j)
 	engine._update_electric_field()
@@ -136,12 +141,12 @@ func test_electric_field_from_hy() -> bool:
 	# Ez(i,j) update: C * (Hy(i+1/2,j) - Hy(i-1/2,j)) -> C * (hy[j*w+i] - hy[j*w+i-1])
 	# Ez(i,j) at test_idx is affected positively by hy[test_idx]
 	var expected_ez_at_pos = update_factor * h_strength
-	check.call(engine.ez[test_idx], expected_ez_at_pos, "Ez(i,j) from Hy(i+1/2,j)")
+	all_tests_passed = all_tests_passed and _check(engine.ez[test_idx], expected_ez_at_pos, "Ez(i,j) from Hy(i+1/2,j)")
 
 	# Ez(i+1,j) update: C * (Hy(i+3/2,j) - Hy(i+1/2,j)) -> C * (hy[j*w+i+1] - hy[j*w+i])
 	# Ez(i+1,j) at test_idx+1 is affected negatively by hy[test_idx]
 	var expected_ez_at_pos_plus_1 = -update_factor * h_strength
-	check.call(engine.ez[test_idx + 1], expected_ez_at_pos_plus_1, "Ez(i+1,j) from Hy(i+1/2,j)")
+	all_tests_passed = all_tests_passed and _check(engine.ez[test_idx + 1], expected_ez_at_pos_plus_1, "Ez(i+1,j) from Hy(i+1/2,j)")
 
 	if all_tests_passed:
 		print("  [PASS] Electric field calculation (from Hy).")
@@ -153,18 +158,12 @@ func test_electric_field_from_hx() -> bool:
 	print("Running test: test_electric_field_from_hx")
 
 	var all_tests_passed = true
-	var check = func(value, expected, message):
-		if not is_equal_approx(value, expected):
-			printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
-			all_tests_passed = false
-
 	var grid_width = FDTDEngine.GRID_WIDTH
 	var test_pos = Vector2i(grid_width / 2, FDTDEngine.GRID_HEIGHT / 2)
 	var test_idx = test_pos.y * grid_width + test_pos.x
 	var h_strength = 1.0
 
-	var engine = FDTDEngine.new()
-	engine.initialize()
+	var engine = _create_initialized_engine()
 	var update_factor = FDTDEngine.COURANT_NUMBER * engine.time_scale
 	# hx[test_idx] は Hx(i, j+1/2) に対応
 	engine.hx[test_idx] = h_strength
@@ -172,10 +171,10 @@ func test_electric_field_from_hx() -> bool:
 	
 	# Ez(i,j)の更新式: ... - C * (Hx(i, j+1/2) - Hx(i, j-1/2))
 	var expected_ez_from_hx = -update_factor * h_strength
-	check.call(engine.ez[test_idx], expected_ez_from_hx, "Ez(i,j) from Hx(i,j+1/2)")
+	all_tests_passed = all_tests_passed and _check(engine.ez[test_idx], expected_ez_from_hx, "Ez(i,j) from Hx(i,j+1/2)")
 
 	var expected_ez_at_pos_plus_1_y = update_factor * h_strength
-	check.call(engine.ez[test_idx + grid_width], expected_ez_at_pos_plus_1_y, "Ez(i,j+1) from Hx(i,j+1/2)")
+	all_tests_passed = all_tests_passed and _check(engine.ez[test_idx + grid_width], expected_ez_at_pos_plus_1_y, "Ez(i,j+1) from Hx(i,j+1/2)")
 
 	if all_tests_passed:
 		print("  [PASS] Electric field calculation (from Hx).")
@@ -206,13 +205,8 @@ func test_visualizer_hx_interpolation() -> bool:
 	
 	# 検証
 	var all_tests_passed = true
-	var check = func(value, expected, message):
-		if not is_equal_approx(value, expected):
-			printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
-			all_tests_passed = false
-
 	var expected_hx_interp = (hx_val1 + hx_val2) * 0.5
-	check.call(hx_interp, expected_hx_interp, "Visualizer Hx interpolation")
+	all_tests_passed = all_tests_passed and _check(hx_interp, expected_hx_interp, "Visualizer Hx interpolation")
 
 	if all_tests_passed:
 		print("  [PASS] MagneticFieldVisualizer Hx interpolation logic.")
@@ -242,13 +236,8 @@ func test_visualizer_hy_interpolation() -> bool:
 	
 	# 検証
 	var all_tests_passed = true
-	var check = func(value, expected, message):
-		if not is_equal_approx(value, expected):
-			printerr("  [FAIL] %s. Expected: %f, Got: %f" % [message, expected, value])
-			all_tests_passed = false
-
 	var expected_hy_interp = (hy_val1 + hy_val2) * 0.5
-	check.call(hy_interp, expected_hy_interp, "Visualizer Hy interpolation")
+	all_tests_passed = all_tests_passed and _check(hy_interp, expected_hy_interp, "Visualizer Hy interpolation")
 
 	if all_tests_passed:
 		print("  [PASS] MagneticFieldVisualizer Hy interpolation logic.")
