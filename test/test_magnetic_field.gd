@@ -163,16 +163,24 @@ func test_electric_field_from_hx() -> bool:
 	var test_idx = test_pos.y * grid_width + test_pos.x
 	var h_strength = 1.0
 
+	print("  - Setup complete. Creating engine...")
 	var engine = _create_initialized_engine()
 	var update_factor = FDTDEngine.COURANT_NUMBER * engine.time_scale
+
+	print("  - Setting initial Hx value...")
 	# hx[test_idx] は Hx(i, j+1/2) に対応
 	engine.hx[test_idx] = h_strength
+
+	print("  - Calling _update_electric_field()...")
 	engine._update_electric_field()
+	print("  - _update_electric_field() finished.")
 	
 	# Ez(i,j)の更新式: ... - C * (Hx(i, j+1/2) - Hx(i, j-1/2))
+	print("  - Checking first assertion...")
 	var expected_ez_from_hx = -update_factor * h_strength
 	all_tests_passed = all_tests_passed and _check(engine.ez[test_idx], expected_ez_from_hx, "Ez(i,j) from Hx(i,j+1/2)")
 
+	print("  - Checking second assertion...")
 	var expected_ez_at_pos_plus_1_y = update_factor * h_strength
 	all_tests_passed = all_tests_passed and _check(engine.ez[test_idx + grid_width], expected_ez_at_pos_plus_1_y, "Ez(i,j+1) from Hx(i,j+1/2)")
 
