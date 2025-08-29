@@ -122,10 +122,12 @@ func _update_magnetic_field():
 func _update_electric_field():
 	# print("  [DEBUG] Entering _update_electric_field...") # デバッグ用に一時的に追加
 	var update_factor = COURANT_NUMBER * time_scale
-	# ループ範囲は(1, 1)から(W-2, H-2)まで。境界(0とW-1, H-1)を含めないことで、
+	# ループ範囲は(1, 1)から(WIDTH-2, HEIGHT-2)まで。境界(0と-1)を含めないことで、
 	# hx[idx - GRID_WIDTH] や hy[idx - 1] での範囲外アクセスを防ぐ。
-	for y in range(1, GRID_HEIGHT - 1): # y=0 を避ける
-		for x in range(1, GRID_WIDTH - 1): # x=0 を避ける
+	# y=0 を避けることで hx[idx - GRID_WIDTH] が負になるのを防ぐ。
+	for y in range(1, GRID_HEIGHT - 1):
+		# x=0 を避けることで hy[idx - 1] が負になるのを防ぐ。
+		for x in range(1, GRID_WIDTH - 1):
 			var idx = y * GRID_WIDTH + x
 
 			# Hxのインデックス定義の変更に伴い、Ezの更新式も修正
