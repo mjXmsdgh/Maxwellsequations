@@ -102,6 +102,7 @@ func _update_physics():
 
 func _update_magnetic_field():
 	var update_factor = COURANT_NUMBER * time_scale
+	var size = ez.size()
 
 	# Hxの更新: Hx(i, j+1/2) = Hx(...) - C * (Ez(i, j+1) - Ez(i, j))
 	# ループ範囲: yは0からGRID_HEIGHT-2まで (ez[idx+GRID_WIDTH]にアクセスするため)
@@ -109,7 +110,10 @@ func _update_magnetic_field():
 	for y in range(0, GRID_HEIGHT - 1):
 		for x in range(0, GRID_WIDTH):
 			var idx = y * GRID_WIDTH + x
-			hx[idx] = hx[idx] - update_factor * (ez[idx + GRID_WIDTH] - ez[idx])
+			var idx_plus_y = idx + GRID_WIDTH
+			# 安全のため、配列アクセスの前にインデックスが範囲内かチェック
+			if idx_plus_y < size:
+				hx[idx] = hx[idx] - update_factor * (ez[idx_plus_y] - ez[idx])
 
 	# Hyの更新: Hy(i+1/2, j) = Hy(...) + C * (Ez(i+1, j) - Ez(i, j))
 	# ループ範囲: yは0からGRID_HEIGHT-1まで (Hyはグリッドの上下両端にも存在する)
@@ -117,11 +121,15 @@ func _update_magnetic_field():
 	for y in range(0, GRID_HEIGHT):
 		for x in range(0, GRID_WIDTH - 1):
 			var idx = y * GRID_WIDTH + x
-			hy[idx] = hy[idx] + update_factor * (ez[idx + 1] - ez[idx])
+			var idx_plus_x = idx + 1
+			# 安全のため、配列アクセスの前にインデックスが範囲内かチェック
+			if idx_plus_x < size:
+				hy[idx] = hy[idx] + update_factor * (ez[idx_plus_x] - ez[idx])
 
 func _update_electric_field():
 	# print("  [DEBUG] Entering _update_electric_field...") # デバッグ用に一時的に追加
 	var update_factor = COURANT_NUMBER * time_scale
+	var size = ez.size()
 	# ループ範囲は(1, 1)から(WIDTH-2, HEIGHT-2)まで。境界(0と-1)を含めないことで、
 	# hx[idx - GRID_WIDTH] や hy[idx - 1] での範囲外アクセスを防ぐ。
 	# y=0 を避けることで hx[idx - GRID_WIDTH] が負になるのを防ぐ。
@@ -129,11 +137,16 @@ func _update_electric_field():
 		# x=0 を避けることで hy[idx - 1] が負になるのを防ぐ。
 		for x in range(1, GRID_WIDTH - 1):
 			var idx = y * GRID_WIDTH + x
+			var idx_minus_x = idx - 1
+			var idx_minus_y = idx - GRID_WIDTH
 
-			# Hxのインデックス定義の変更に伴い、Ezの更新式も修正
-			# dHx/dy は Hx(i, j+1/2) - Hx(i, j-1/2) -> hx[idx] - hx[idx - GRID_WIDTH]
-			ez[idx] = ez[idx] + update_factor * ((hy[idx] - hy[idx - 1]) - (hx[idx] - hx[idx - GRID_WIDTH]))
+			# 安全のため、配列アクセスの前にインデックスが範囲内かチェック
+			# (ループ範囲により通常は常にtrueだが、堅牢性のために追加)
+			if idx_minus_y >= 0 and idx < size:
+				# Hxのインデックス定義の変更に伴い、Ezの更新式も修正
+				# dHx/dy は Hx(i, j+1/2) - Hx(i, j-1/2) -> hx[idx] - hx[idx - GRID_WIDTH]
+				ez[idx] = ez[idx] + update_factor * ((hy[idx] - hy[idx_minus_x]) - (hx[idx] - hx[idx_minus_y]))
 
-			if obstacle_map[idx] == OBSTACLE_VALUE:
-				ez[idx] = 0.0
+				if obstacle_map[idx] == OBSTACLE_VALUE:
+					ez[idx] = 0.0
 	# print("  [DEBUG] Exiting _update_electric_field.") # デバッグ用に一時的に追加
