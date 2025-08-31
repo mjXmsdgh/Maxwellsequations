@@ -102,7 +102,6 @@ func _update_physics():
 
 func _update_magnetic_field():
 	var update_factor = COURANT_NUMBER * time_scale
-	var size = ez.size()
 
 	# Hxの更新: Hx(i, j+1/2) = Hx(...) - C * (Ez(i, j+1) - Ez(i, j))
 	# ループ範囲: yは0からGRID_HEIGHT-2まで (ez[idx+GRID_WIDTH]にアクセスするため)
@@ -111,9 +110,7 @@ func _update_magnetic_field():
 		for x in range(0, GRID_WIDTH):
 			var idx = y * GRID_WIDTH + x
 			var idx_plus_y = idx + GRID_WIDTH
-			# 安全のため、配列アクセスの前にインデックスが範囲内かチェック
-			if idx_plus_y < size:
-				hx[idx] = hx[idx] - update_factor * (ez[idx_plus_y] - ez[idx])
+			hx[idx] = hx[idx] - update_factor * (ez[idx_plus_y] - ez[idx])
 
 	# Hyの更新: Hy(i+1/2, j) = Hy(...) + C * (Ez(i+1, j) - Ez(i, j))
 	# ループ範囲: yは0からGRID_HEIGHT-1まで (Hyはグリッドの上下両端にも存在する)
@@ -122,29 +119,21 @@ func _update_magnetic_field():
 		for x in range(0, GRID_WIDTH - 1):
 			var idx = y * GRID_WIDTH + x
 			var idx_plus_x = idx + 1
-			# 安全のため、配列アクセスの前にインデックスが範囲内かチェック
-			if idx_plus_x < size:
-				hy[idx] = hy[idx] + update_factor * (ez[idx_plus_x] - ez[idx])
+			hy[idx] = hy[idx] + update_factor * (ez[idx_plus_x] - ez[idx])
 
 func _update_electric_field():
-	print("  [DEBUG] Entering _update_electric_field...") # デバッグ用に一時的に追加
-
 	var update_factor = COURANT_NUMBER * time_scale
 
-	# 安定性の問題（稀なクラッシュ）を回避するため、ループ構造を完全に変更します。
-	# 境界を除いた内部グリッド全体を1つのループで処理します。
-	# これにより、GodotのJITコンパイラの挙動が変わり、潜在的なバグを回避できる可能性があります。
-	var size = GRID_WIDTH * GRID_HEIGHT
-	for idx in range(GRID_WIDTH + 1, size - GRID_WIDTH):
-		# 境界のセル（x=0, x=WIDTH-1）は計算から除外する
-		if idx % GRID_WIDTH == 0 or idx % GRID_WIDTH == GRID_WIDTH - 1:
-			continue
+	# 電場の更新。境界(0と-1)を含めないことで、範囲外アクセスを防ぐ。
+	# このネストしたループはアルゴリズムを最も直接的に表現しています。
+	# もしこれでも稀に不安定な場合、GDScriptのJITコンパイラに関連するエンジン側の問題である可能性が高いです。
+	for y in range(1, GRID_HEIGHT - 1):
+		for x in range(1, GRID_WIDTH - 1):
+			var idx = y * GRID_WIDTH + x
+			var idx_minus_x = idx - 1
+			var idx_minus_y = idx - GRID_WIDTH
+			
+			ez[idx] = ez[idx] + update_factor * ((hy[idx] - hy[idx_minus_x]) - (hx[idx] - hx[idx_minus_y]))
 
-		var idx_minus_x = idx - 1
-		var idx_minus_y = idx - GRID_WIDTH
-		ez[idx] = ez[idx] + update_factor * ((hy[idx] - hy[idx_minus_x]) - (hx[idx] - hx[idx_minus_y]))
-
-		if obstacle_map[idx] == OBSTACLE_VALUE:
-			ez[idx] = 0.0
-
-	print("  [DEBUG] Exiting _update_electric_field.") # デバッグ用に一時的に追加
+			if obstacle_map[idx] == OBSTACLE_VALUE:
+				ez[idx] = 0.0
