@@ -127,26 +127,24 @@ func _update_magnetic_field():
 				hy[idx] = hy[idx] + update_factor * (ez[idx_plus_x] - ez[idx])
 
 func _update_electric_field():
-	# print("  [DEBUG] Entering _update_electric_field...") # デバッグ用に一時的に追加
+	print("  [DEBUG] Entering _update_electric_field...") # デバッグ用に一時的に追加
+
 	var update_factor = COURANT_NUMBER * time_scale
-	var size = ez.size()
-	# ループ範囲は(1, 1)から(WIDTH-2, HEIGHT-2)まで。境界(0と-1)を含めないことで、
-	# hx[idx - GRID_WIDTH] や hy[idx - 1] での範囲外アクセスを防ぐ。
-	# y=0 を避けることで hx[idx - GRID_WIDTH] が負になるのを防ぐ。
-	for y in range(1, GRID_HEIGHT - 1):
-		# x=0 を避けることで hy[idx - 1] が負になるのを防ぐ。
-		for x in range(1, GRID_WIDTH - 1):
-			var idx = y * GRID_WIDTH + x
-			var idx_minus_x = idx - 1
-			var idx_minus_y = idx - GRID_WIDTH
 
-			# 安全のため、配列アクセスの前にインデックスが範囲内かチェック
-			# (ループ範囲により通常は常にtrueだが、堅牢性のために追加)
-			if idx_minus_y >= 0 and idx < size:
-				# Hxのインデックス定義の変更に伴い、Ezの更新式も修正
-				# dHx/dy は Hx(i, j+1/2) - Hx(i, j-1/2) -> hx[idx] - hx[idx - GRID_WIDTH]
-				ez[idx] = ez[idx] + update_factor * ((hy[idx] - hy[idx_minus_x]) - (hx[idx] - hx[idx_minus_y]))
+	# 安定性の問題（稀なクラッシュ）を回避するため、ループ構造を完全に変更します。
+	# 境界を除いた内部グリッド全体を1つのループで処理します。
+	# これにより、GodotのJITコンパイラの挙動が変わり、潜在的なバグを回避できる可能性があります。
+	var size = GRID_WIDTH * GRID_HEIGHT
+	for idx in range(GRID_WIDTH + 1, size - GRID_WIDTH):
+		# 境界のセル（x=0, x=WIDTH-1）は計算から除外する
+		if idx % GRID_WIDTH == 0 or idx % GRID_WIDTH == GRID_WIDTH - 1:
+			continue
 
-				if obstacle_map[idx] == OBSTACLE_VALUE:
-					ez[idx] = 0.0
-	# print("  [DEBUG] Exiting _update_electric_field.") # デバッグ用に一時的に追加
+		var idx_minus_x = idx - 1
+		var idx_minus_y = idx - GRID_WIDTH
+		ez[idx] = ez[idx] + update_factor * ((hy[idx] - hy[idx_minus_x]) - (hx[idx] - hx[idx_minus_y]))
+
+		if obstacle_map[idx] == OBSTACLE_VALUE:
+			ez[idx] = 0.0
+
+	print("  [DEBUG] Exiting _update_electric_field.") # デバッグ用に一時的に追加
