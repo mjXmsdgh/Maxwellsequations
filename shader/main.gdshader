@@ -1,5 +1,8 @@
 shader_type canvas_item;
 
+// 色の増幅率。エディタのインスペクターから調整可能になります。
+uniform float color_multiplier : hint_range(1.0, 50.0) = 5.0;
+
 void vertex() {
 	// Called for every vertex the material is visible on.
 }
@@ -9,8 +12,9 @@ void fragment() {
     // テクスチャからグレースケール値(0.0-1.0)を取得
     float value = texture(TEXTURE, UV).r;
 
-    // 障害物(エンコード値が128/255.0 ≒ 0.5)を灰色で描画
-    if (abs(value - 128.0 / 255.0) < 0.002) { // 判定の許容範囲を狭くして、より正確に障害物だけを検出する
+    // 元の8bit整数値(0-255)に復元し、障害物(128)であるか正確に判定する
+    // これにより、波のゼロ地点(エンコード値0.5)が障害物と誤判定されるのを防ぐ
+    if (round(value * 255.0) == 128.0) {
         COLOR = vec4(0.5, 0.5, 0.5, 1.0); // 灰色
     } else {
 		// 障害物でなければ、波を描画
@@ -19,9 +23,9 @@ void fragment() {
 
 		vec3 color = vec3(0.0); // 基本は黒
 		if (value > 0.0) {
-			color.r = value; // プラスなら赤
+			color.r = value * color_multiplier; // プラスなら赤（増幅）
 		} else {
-			color.b = -value; // マイナスなら青
+			color.b = -value * color_multiplier; // マイナスなら青（増幅）
 		}
 		COLOR = vec4(color, 1.0);
     }
