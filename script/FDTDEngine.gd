@@ -11,6 +11,7 @@ const COURANT_NUMBER = 0.5
 const WAVE_FREQUENCY = 8.0 # 波の周波数（値を小さくすると波長が長くなる）
 
 const OBSTACLE_VALUE: int = 1
+const NO_OBSTACLE_VALUE: int = 0
 
 # --- プロパティ ---
 var time: float = 0.0 # シミュレーションの経過時間
@@ -55,7 +56,7 @@ func reset():
 	ez.fill(0.0)
 	hx.fill(0.0)
 	hy.fill(0.0)
-	obstacle_map.fill(0)
+	obstacle_map.fill(NO_OBSTACLE_VALUE)
 	time = 0.0
 
 func add_source(grid_x: int, grid_y: int, strength: float):

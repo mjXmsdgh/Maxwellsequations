@@ -39,6 +39,7 @@ var hy: PackedFloat32Array:
 	get: return engine.hy if is_instance_valid(engine) else PackedFloat32Array()
 
 var last_mouse_grid_pos: Vector2i = INVALID_GRID_POS # 最後に描画したマウスのグリッド座標
+var _is_drawing_obstacle: bool = false # 障害物を描画中かどうかのフラグ
 
 
 # ノードがシーンツリーに追加されたときに一度だけ呼び出される初期化関数
@@ -109,11 +110,9 @@ func _update_texture():
 
 
 func reset_simulation():
-	
-	engine=FDTDEngine.new()
-	engine.initialize()
+	# FDTDEngineの内部状態をリセット（インスタンスの再生成を避ける）
+	engine.reset()
 	_time = 0.0 # 波源の時間をリセット
-
 	_update_texture()
 
 # マウスのグローバル座標をグリッド座標に変換するヘルパー関数
@@ -123,50 +122,41 @@ func get_mouse_grid_pos() -> Vector2i:
 	# rect_sizeが0だとゼロ除算エラーになるのを防ぐ
 	if rect_size.x == 0 or rect_size.y == 0:
 		return INVALID_GRID_POS
+
 	var grid_x = int(local_pos.x / rect_size.x * grid_width)
 	var grid_y = int(local_pos.y / rect_size.y * grid_height)
-	return Vector2i(grid_x, grid_y)
+
+	# 範囲チェック
+	if grid_x >= 0 and grid_x < grid_width and grid_y >= 0 and grid_y < grid_height:
+		return Vector2i(grid_x, grid_y)
+	else:
+		return INVALID_GRID_POS
 
 # --- 入力処理 ---
 
 func _handle_obstacle_input(event: InputEvent):
-	# --- 左クリックの処理 ---
-	# イベントがマウスボタン、かつ左ボタンの場合
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		# ボタンが押された瞬間の処理
 		if event.is_pressed():
-			# 現在のマウス位置をグリッド座標で取得
+			_is_drawing_obstacle = true
 			var current_pos = get_mouse_grid_pos()
-			# 座標が有効なら、クリックした点に障害物を描画
-			if current_pos.x >= 0:
-				# 点を描画するために、始点と終点を同じ位置にする
+			if current_pos != INVALID_GRID_POS:
 				engine.add_obstacle_line(current_pos, current_pos)
-			# ドラッグ描画のために、最後のマウス位置を記録
-			last_mouse_grid_pos = current_pos
-		# ボタンが離された瞬間の処理
+				last_mouse_grid_pos = current_pos
 		else:
-			# 最後のマウス位置をリセットし、ドラッグ描画を終了
+			_is_drawing_obstacle = false
 			last_mouse_grid_pos = INVALID_GRID_POS
 
-	# --- マウスドラッグの処理 ---
-	# イベントがマウス移動、かつ左ボタンが押されている場合
-	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
-		# 前回のマウス位置が有効な場合（ドラッグ中）
-		if last_mouse_grid_pos.x >= 0:
-			# 現在のマウス位置を取得
-			var current_pos = get_mouse_grid_pos()
-			# 新しい位置が有効で、かつ前回の位置から移動している場合
-			if current_pos.x >= 0 and current_pos != last_mouse_grid_pos:
-				# 前回の位置から現在の位置まで直線を引く
-				engine.add_obstacle_line(last_mouse_grid_pos, current_pos)
-				# 最後のマウス位置を更新
-				last_mouse_grid_pos = current_pos
+	if event is InputEventMouseMotion and _is_drawing_obstacle:
+		var current_pos = get_mouse_grid_pos()
+		if current_pos != INVALID_GRID_POS and current_pos != last_mouse_grid_pos:
+			engine.add_obstacle_line(last_mouse_grid_pos, current_pos)
+			last_mouse_grid_pos = current_pos
 
 func _handle_source_input(event: InputEvent):
 	# 波源追加ロジック (右クリック)
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
 		var grid_pos = get_mouse_grid_pos()
-		if grid_pos.x >= 0:
+		if grid_pos != INVALID_GRID_POS:
 			engine.add_source(grid_pos.x, grid_pos.y, click_strength)
 
 func _input(event: InputEvent):
