@@ -49,6 +49,11 @@ func _ready():
 	texture = ImageTexture.create_from_image(image)
 	$TextureRect.texture = texture
 
+	# テクスチャのフィルタリングを「ニアレストネイバー」に設定します。
+	# これにより、ピクセル間の色が補間（ブラー）されるのを防ぎ、
+	# 127と129の間の値が128（障害物）として誤描画される問題を完全に解決します。
+	$TextureRect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
 	# 最初のテクスチャ更新
 	_update_texture()
 
