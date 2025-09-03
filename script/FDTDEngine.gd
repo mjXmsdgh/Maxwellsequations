@@ -10,8 +10,9 @@ const GRID_HEIGHT = 256#512 # グリッドの高さ
 const COURANT_NUMBER = 0.5
 const WAVE_FREQUENCY = 8.0 # 波の周波数（値を小さくすると波長が長くなる）
 
-const OBSTACLE_VALUE: int = 1
-const NO_OBSTACLE_VALUE: int = 0
+# 障害物マップ用の内部フラグ
+const OBSTACLE_FLAG: int = 1
+const NO_OBSTACLE_FLAG: int = 0
 
 # --- プロパティ ---
 var time: float = 0.0 # シミュレーションの経過時間
@@ -56,7 +57,7 @@ func reset():
 	ez.fill(0.0)
 	hx.fill(0.0)
 	hy.fill(0.0)
-	obstacle_map.fill(NO_OBSTACLE_VALUE)
+	obstacle_map.fill(NO_OBSTACLE_FLAG)
 	time = 0.0
 
 func add_source(grid_x: int, grid_y: int, strength: float):
@@ -80,7 +81,7 @@ func add_obstacle_line(p1: Vector2i, p2: Vector2i):
 	while true:
 		if x1 >= 0 and x1 < GRID_WIDTH and y1 >= 0 and y1 < GRID_HEIGHT:
 			var idx = y1 * GRID_WIDTH + x1
-			obstacle_map[idx] = OBSTACLE_VALUE
+			obstacle_map[idx] = OBSTACLE_FLAG
 
 		if x1 == x2 and y1 == y2:
 			break
@@ -92,6 +93,32 @@ func add_obstacle_line(p1: Vector2i, p2: Vector2i):
 		if e2 <= dx:
 			err += dx
 			y1 += sy
+
+# --- 描画データ生成 ---
+
+# シェーダーで障害物として描画するための固定値 (0-255)
+const OBSTACLE_DRAW_VALUE: int = 128
+
+func get_image_data() -> PackedByteArray:
+	"""
+	現在のシミュレーション状態をテクスチャ用のバイト配列に変換します。
+	- 電場(ez)の値は -1.0..1.0 から 0..255 の範囲にマッピングされます。
+	- 障害物は特別な値 OBSTACLE_DRAW_VALUE (128) としてエンコードされます。
+	- 電場の値がエンコード後に 128 にならないように調整し、障害物との衝突を避けます。
+	"""
+	var data = PackedByteArray()
+	data.resize(ez.size())
+	for i in range(ez.size()):
+		if obstacle_map[i] == OBSTACLE_FLAG:
+			data[i] = OBSTACLE_DRAW_VALUE
+		else:
+			# ez の値 (-1.0 to 1.0) を 0-255 の範囲にマッピング
+			var val = clampf(ez[i], -1.0, 1.0)
+			var mapped_val = int((val * 0.5 + 0.5) * 255.0)
+			if mapped_val == OBSTACLE_DRAW_VALUE:
+				mapped_val += 1 # 128 は障害物用に予約されているため、129にずらす
+			data[i] = clamp(mapped_val, 0, 255)
+	return data
 
 # --- 内部計算ロジック ---
 
@@ -136,5 +163,5 @@ func _update_electric_field():
 			
 			ez[idx] = ez[idx] + update_factor * ((hy[idx] - hy[idx_minus_x]) - (hx[idx] - hx[idx_minus_y]))
 
-			if obstacle_map[idx] == OBSTACLE_VALUE:
+			if obstacle_map[idx] == OBSTACLE_FLAG:
 				ez[idx] = 0.0

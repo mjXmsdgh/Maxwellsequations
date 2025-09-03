@@ -11,10 +11,6 @@ class_name FDTDSimulator
 @export_range(0, 1000) var source_x_position: int = 20   # 波源のX座標（グリッド単位）
 
 @export_category("Visualization")
-const OBSTACLE_ENCODE_VALUE: int = 128 # 障害物をテクスチャに書き込む際の値 (0-255)
-const EZ_CLAMP_MIN: float = -1.0 # 描画時にクランプするezの最小値
-const EZ_CLAMP_MAX: float = 1.0
-
 const INVALID_GRID_POS := Vector2i(-1, -1)
 
 var image: Image # シミュレーション結果を格納する画像データ
@@ -87,24 +83,11 @@ func _add_plane_wave_source():
 
 # シミュレーション結果をテクスチャに描画する
 func _update_texture():
-	# L8(グレースケール)フォーマットなので、ピクセルごとに1バイト
-	var pixels = PackedByteArray()
-	pixels.resize(grid_width * grid_height)
-
-	var current_ez = engine.ez
-	var current_obstacle_map = engine.obstacle_map
-
-	for i in range(current_ez.size()):
-		if current_obstacle_map[i] == FDTDEngine.OBSTACLE_VALUE:
-			# 障害物はシェーダーが認識できるよう特定の値でエンコード
-			pixels[i] = OBSTACLE_ENCODE_VALUE
-		else:
-			# ezの値を[-1, 1]から[0, 255]のグレースケール値に変換(エンコード)
-			var value = clampf(current_ez[i], EZ_CLAMP_MIN, EZ_CLAMP_MAX)
-			# 範囲変換: [-1, 1] -> [0, 2] -> [0, 1] -> [0, 255]
-			var encoded_value = int(((value - EZ_CLAMP_MIN) / (EZ_CLAMP_MAX - EZ_CLAMP_MIN)) * 255.0)
-			pixels[i] = encoded_value
-
+	# FDTDEngineから、障害物との衝突を回避するようにエンコードされた
+	# バイト配列を直接取得します。
+	# これにより、描画ロジックがエンジン内にカプセル化され、
+	# FDTDSimulatorは描画の詳細を意識する必要がなくなります。
+	var pixels: PackedByteArray = engine.get_image_data()
 	image.set_data(grid_width, grid_height, false, Image.FORMAT_L8, pixels)
 	texture.update(image) # 既存のテクスチャを新しい画像データで更新
 
