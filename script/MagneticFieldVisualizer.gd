@@ -77,6 +77,25 @@ func _prepare_vectors_to_draw() -> Array[Dictionary]:
 	return vectors
 
 
+func _calculate_draw_scale(vectors: Array[Dictionary]) -> float:
+	"""描画データのリストを基に、ベクトルの描画スケールを計算して返す。"""
+	if not auto_scale:
+		return vector_scale
+
+	var max_h_sq = 0.0
+	# 準備したデータから最大値(の2乗)を求める
+	for v_data in vectors:
+		max_h_sq = max(max_h_sq, v_data.vec.length_squared())
+
+	if max_h_sq > MIN_VECTOR_LENGTH_SQ:
+		var max_h = sqrt(max_h_sq)
+		# 最大長のベクトルが `vector_scale` の長さで描画されるようにスケールを計算
+		return vector_scale / max_h
+	
+	# ゼロ除算を避け、ベクトルが非常に小さい場合は固定スケールを返す
+	return vector_scale
+
+
 func _draw():
 	# simulatorが準備できているか確認
 	if not is_instance_valid(simulator):
@@ -88,39 +107,29 @@ func _draw():
 	if vectors_to_draw.is_empty():
 		return
 
-	var max_h = 0.0
-	if auto_scale:
-		var max_h_sq = 0.0
-		# 準備したデータから最大値(の2乗)を求める
-		for v_data in vectors_to_draw:
-			max_h_sq = max(max_h_sq, v_data.vec.length_squared())
-
-		if max_h_sq > MIN_VECTOR_LENGTH_SQ:
-			max_h = sqrt(max_h_sq)
+	# ステップ2: 描画スケールを計算する
+	var current_scale: float = _calculate_draw_scale(vectors_to_draw)
 
 	var arrowhead_angle_rad = deg_to_rad(arrowhead_angle_deg)
 
-	# 準備したデータを使ってベクトルを描画
+	# 準備したデータと計算したスケールを使ってベクトルを描画
 	for v_data in vectors_to_draw:
-			var start_pos: Vector2 = v_data.pos
-			var vec_h: Vector2 = v_data.vec
-			var end_pos: Vector2
+		var start_pos: Vector2 = v_data.pos
+		var vec_h: Vector2 = v_data.vec
+		
+		# スケールを適用して終点を計算
+		var end_pos = start_pos + vec_h * current_scale
 
-			if auto_scale and max_h > 0:
-				# 最大長を基準に長さをスケーリング
-				var length = vec_h.length() / max_h * vector_scale
-				end_pos = start_pos + vec_h.normalized() * length
-			else:
-				# 固定倍率でスケーリング
-				end_pos = start_pos + vec_h * vector_scale
+		# ベクトルの本体（線）を描画
+		draw_line(start_pos, end_pos, vector_color, 1.0, true) # antialiased = true
 
-			# ベクトルの本体（線）を描画
-			draw_line(start_pos, end_pos, vector_color, 1.0, true) # antialiased = true
-
-			# 矢印の先端を描画
-			if arrowhead_draw:
-				var direction = (end_pos - start_pos).normalized()
-				var p1 = end_pos - direction.rotated(arrowhead_angle_rad) * arrowhead_length
-				var p2 = end_pos - direction.rotated(-arrowhead_angle_rad) * arrowhead_length
-				draw_line(end_pos, p1, vector_color, 1.0, true) # antialiased = true
-				draw_line(end_pos, p2, vector_color, 1.0, true) # antialiased = true
+		# 矢印の先端を描画
+		if arrowhead_draw:
+			# 描画されたベクトルの長さが非常に短い場合、矢印を描画しても見栄えが悪いのでスキップ
+			if start_pos.distance_squared_to(end_pos) < 1.0:
+				continue
+			var direction = (end_pos - start_pos).normalized()
+			var p1 = end_pos - direction.rotated(arrowhead_angle_rad) * arrowhead_length
+			var p2 = end_pos - direction.rotated(-arrowhead_angle_rad) * arrowhead_length
+			draw_line(end_pos, p1, vector_color, 1.0, true) # antialiased = true
+			draw_line(end_pos, p2, vector_color, 1.0, true) # antialiased = true
