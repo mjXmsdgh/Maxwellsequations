@@ -30,5 +30,4 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="MagneticFieldVisualizer" type="Node2D" parent="."]
-visible = false
 script = ExtResource("3_bhnu6")

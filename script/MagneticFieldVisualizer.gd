@@ -38,38 +38,31 @@ func _process(_delta):
 	queue_redraw()
 
 
-func _draw():
-	# simulatorと、その中のengineが準備できているか確認
-	if not is_instance_valid(simulator):
-		return
-
+func _prepare_vectors_to_draw() -> Array[Dictionary]:
+	"""シミュレーションデータから描画すべきベクトルのリストを作成して返す。"""
 	# シミュレータから必要な情報を取得
 	var hx: PackedFloat32Array = simulator.hx
 	var hy: PackedFloat32Array = simulator.hy
 	if hx.is_empty() or hy.is_empty():
-		return
+		return []
 
 	var grid_width: int = simulator.grid_width
 	var grid_height: int = simulator.grid_height
-
 	if grid_width == 0 or grid_height == 0:
-		return
+		return []
 
 	var rect_size: Vector2 = texture_rect.size
 
 	# グリッド座標から描画座標への変換スケール
 	var coord_scale: Vector2 = rect_size / Vector2(grid_width, grid_height)
 
-	# 描画するベクトルのデータを準備（計算の重複を避けるため）
-	var vectors_to_draw: Array[Dictionary] = []
+	var vectors: Array[Dictionary] = []
 	# 補間に伴う配列の範囲外アクセスを避けるため、ループ範囲を y=1 から開始
 	for y in range(1, grid_height - 1, draw_step):
 		for x in range(1, grid_width, draw_step):
 			var idx = y * grid_width + x
 
 			# Yeeグリッドのスタッガード配置を考慮し、磁場ベクトルをEzグリッド中心(i,j)に補間
-			# Hx(i,j) = ( Hx(i, j+1/2) + Hx(i, j-1/2) ) / 2
-			# Hx(i, j+1/2) -> hx[idx], Hx(i, j-1/2) -> hx[idx - grid_width]
 			var hx_interp = (hx[idx] + hx[idx - grid_width]) * 0.5
 			var hy_interp = (hy[idx] + hy[idx - 1]) * 0.5
 			var vec_h = Vector2(hx_interp, hy_interp)
@@ -79,7 +72,18 @@ func _draw():
 				continue
 
 			var start_pos = Vector2(x, y) * coord_scale
-			vectors_to_draw.append({"vec": vec_h, "pos": start_pos})
+			vectors.append({"vec": vec_h, "pos": start_pos})
+	
+	return vectors
+
+
+func _draw():
+	# simulatorが準備できているか確認
+	if not is_instance_valid(simulator):
+		return
+
+	# ステップ1: 描画するベクトルのデータを準備する
+	var vectors_to_draw: Array[Dictionary] = _prepare_vectors_to_draw()
 
 	if vectors_to_draw.is_empty():
 		return
