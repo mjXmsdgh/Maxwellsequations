@@ -96,6 +96,26 @@ func _calculate_draw_scale(vectors: Array[Dictionary]) -> float:
 	return vector_scale
 
 
+func _draw_single_vector(start_pos: Vector2, end_pos: Vector2, color: Color):
+	"""1本のベクトル（線本体と矢印の先端）を描画する。"""
+	# ベクトルの本体（線）を描画
+	draw_line(start_pos, end_pos, color, 1.0, true) # antialiased = true
+
+	# 矢印の先端を描画
+	if not arrowhead_draw:
+		return
+
+	# 描画されたベクトルの長さが非常に短い場合、矢印を描画しても見栄えが悪いのでスキップ
+	if start_pos.distance_squared_to(end_pos) < 1.0:
+		return
+
+	var arrowhead_angle_rad = deg_to_rad(arrowhead_angle_deg)
+	var direction = (end_pos - start_pos).normalized()
+	var p1 = end_pos - direction.rotated(arrowhead_angle_rad) * arrowhead_length
+	var p2 = end_pos - direction.rotated(-arrowhead_angle_rad) * arrowhead_length
+	draw_line(end_pos, p1, color, 1.0, true) # antialiased = true
+	draw_line(end_pos, p2, color, 1.0, true) # antialiased = true
+
 func _draw():
 	# simulatorが準備できているか確認
 	if not is_instance_valid(simulator):
@@ -110,26 +130,13 @@ func _draw():
 	# ステップ2: 描画スケールを計算する
 	var current_scale: float = _calculate_draw_scale(vectors_to_draw)
 
-	var arrowhead_angle_rad = deg_to_rad(arrowhead_angle_deg)
-
-	# 準備したデータと計算したスケールを使ってベクトルを描画
+	# ステップ3: 準備したデータと計算したスケールを使ってベクトルを1本ずつ描画
 	for v_data in vectors_to_draw:
 		var start_pos: Vector2 = v_data.pos
 		var vec_h: Vector2 = v_data.vec
-		
+
 		# スケールを適用して終点を計算
 		var end_pos = start_pos + vec_h * current_scale
 
-		# ベクトルの本体（線）を描画
-		draw_line(start_pos, end_pos, vector_color, 1.0, true) # antialiased = true
-
-		# 矢印の先端を描画
-		if arrowhead_draw:
-			# 描画されたベクトルの長さが非常に短い場合、矢印を描画しても見栄えが悪いのでスキップ
-			if start_pos.distance_squared_to(end_pos) < 1.0:
-				continue
-			var direction = (end_pos - start_pos).normalized()
-			var p1 = end_pos - direction.rotated(arrowhead_angle_rad) * arrowhead_length
-			var p2 = end_pos - direction.rotated(-arrowhead_angle_rad) * arrowhead_length
-			draw_line(end_pos, p1, vector_color, 1.0, true) # antialiased = true
-			draw_line(end_pos, p2, vector_color, 1.0, true) # antialiased = true
+		# ヘルパー関数を呼び出してベクトルを描画
+		_draw_single_vector(start_pos, end_pos, vector_color)
