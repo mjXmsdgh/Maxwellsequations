@@ -20,6 +20,9 @@ const MIN_VECTOR_LENGTH_SQ = 1e-9
 @onready var simulator: FDTDSimulator = get_parent()
 @onready var texture_rect: TextureRect = simulator.get_node_or_null("TextureRect")
 
+# 描画する点の情報を事前に計算して格納する配列
+var _draw_points_info: Array[Dictionary] = []
+
 
 func _ready():
 	# 親ノードがFDTDSimulatorであることを確認
@@ -33,10 +36,30 @@ func _ready():
 		set_process(false)
 		return
 
+	# 描画する点の情報を事前計算する
+	_precalculate_draw_points()
+
 func _process(_delta):
 	# 毎フレーム再描画を要求する
 	queue_redraw()
 
+
+func _precalculate_draw_points():
+	"""
+	ベクトルを描画するグリッド上の点とインデックスを事前に計算し、
+	_draw_points_info 配列に格納する。_ready() で一度だけ呼び出す。
+	"""
+	_draw_points_info.clear()
+	var grid_width: int = simulator.grid_width
+	var grid_height: int = simulator.grid_height
+	if grid_width == 0 or grid_height == 0:
+		return
+
+	# 補間に伴う配列の範囲外アクセスを避けるため、ループ範囲を y=1 から開始
+	for y in range(1, grid_height - 1, draw_step):
+		for x in range(1, grid_width, draw_step):
+			var idx = y * grid_width + x
+			_draw_points_info.append({"idx": idx, "grid_pos": Vector2(x, y)})
 
 func _prepare_vectors_to_draw() -> Array[Dictionary]:
 	"""シミュレーションデータから描画すべきベクトルのリストを作成して返す。"""
@@ -45,34 +68,31 @@ func _prepare_vectors_to_draw() -> Array[Dictionary]:
 	var hy: PackedFloat32Array = simulator.hy
 	if hx.is_empty() or hy.is_empty():
 		return []
+	
+	# 事前計算された描画点がなければ何もしない
+	if _draw_points_info.is_empty():
+		return []
 
 	var grid_width: int = simulator.grid_width
 	var grid_height: int = simulator.grid_height
-	if grid_width == 0 or grid_height == 0:
-		return []
-
 	var rect_size: Vector2 = texture_rect.size
 
 	# グリッド座標から描画座標への変換スケール
 	var coord_scale: Vector2 = rect_size / Vector2(grid_width, grid_height)
 
 	var vectors: Array[Dictionary] = []
-	# 補間に伴う配列の範囲外アクセスを避けるため、ループ範囲を y=1 から開始
-	for y in range(1, grid_height - 1, draw_step):
-		for x in range(1, grid_width, draw_step):
-			var idx = y * grid_width + x
-
-			# Yeeグリッドのスタッガード配置を考慮し、磁場ベクトルをEzグリッド中心(i,j)に補間
-			var hx_interp = (hx[idx] + hx[idx - grid_width]) * 0.5
-			var hy_interp = (hy[idx] + hy[idx - 1]) * 0.5
-			var vec_h = Vector2(hx_interp, hy_interp)
-
-			# ベクトルの長さが非常に小さい場合はスキップ
-			if vec_h.length_squared() < MIN_VECTOR_LENGTH_SQ:
-				continue
-
-			var start_pos = Vector2(x, y) * coord_scale
-			vectors.append({"vec": vec_h, "pos": start_pos})
+	# 事前計算した点のリストをループする
+	for point_info in _draw_points_info:
+		var idx: int = point_info.idx
+		# Yeeグリッドのスタッガード配置を考慮し、磁場ベクトルをEzグリッド中心(i,j)に補間
+		var hx_interp = (hx[idx] + hx[idx - grid_width]) * 0.5
+		var hy_interp = (hy[idx] + hy[idx - 1]) * 0.5
+		var vec_h = Vector2(hx_interp, hy_interp)
+		# ベクトルの長さが非常に小さい場合はスキップ
+		if vec_h.length_squared() < MIN_VECTOR_LENGTH_SQ:
+			continue
+		var start_pos = point_info.grid_pos * coord_scale
+		vectors.append({"vec": vec_h, "pos": start_pos})
 	
 	return vectors
 
