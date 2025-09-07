@@ -123,21 +123,29 @@ func get_mouse_grid_pos() -> Vector2i:
 # --- 入力処理 ---
 
 func _handle_obstacle_input(event: InputEvent):
+	# マウスの左ボタンが押された/離された時の処理
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.is_pressed():
+			# 描画モードを開始
 			_is_drawing_obstacle = true
 			var current_pos = get_mouse_grid_pos()
 			if current_pos != INVALID_GRID_POS:
+				# クリックした点に障害物を描画し、開始点として保存
 				engine.add_obstacle_line(current_pos, current_pos)
 				last_mouse_grid_pos = current_pos
 		else:
+			# 描画モードを終了
 			_is_drawing_obstacle = false
 			last_mouse_grid_pos = INVALID_GRID_POS
 
+	# マウスがドラッグされた時の処理 (描画モード中のみ)
 	if event is InputEventMouseMotion and _is_drawing_obstacle:
 		var current_pos = get_mouse_grid_pos()
+		# マウスが新しいグリッドに移動した場合
 		if current_pos != INVALID_GRID_POS and current_pos != last_mouse_grid_pos:
+			# 前回の位置から現在の位置まで線を描画
 			engine.add_obstacle_line(last_mouse_grid_pos, current_pos)
+			# 現在位置を更新
 			last_mouse_grid_pos = current_pos
 
 func _handle_source_input(event: InputEvent):
