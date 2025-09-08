@@ -23,6 +23,7 @@ var ez: PackedFloat32Array # 電場 (Ez成分)
 var hx: PackedFloat32Array # 磁場 (Hx成分)
 var hy: PackedFloat32Array # 磁場 (Hy成分)
 var obstacle_map: PackedByteArray
+var permittivity_map: PackedFloat32Array # 比誘電率マップ (ε_r)
 
 var center_idx: int # 波源の中心インデックス
 
@@ -34,6 +35,7 @@ func _init():
 	hx = PackedFloat32Array()
 	hy = PackedFloat32Array()
 	obstacle_map = PackedByteArray()
+	permittivity_map = PackedFloat32Array()
 
 # --- 初期化 ---
 func initialize():
@@ -43,6 +45,7 @@ func initialize():
 	hx.resize(size)
 	hy.resize(size)
 	obstacle_map.resize(size)
+	permittivity_map.resize(size)
 
 	center_idx = (GRID_HEIGHT / 2) * GRID_WIDTH + (GRID_WIDTH / 2)
 	reset()
@@ -58,6 +61,7 @@ func reset():
 	hx.fill(0.0)
 	hy.fill(0.0)
 	obstacle_map.fill(NO_OBSTACLE_FLAG)
+	permittivity_map.fill(1.0) # 全てを真空(比誘電率1.0)で初期化
 	time = 0.0
 
 func add_source(grid_x: int, grid_y: int, strength: float):
@@ -161,7 +165,9 @@ func _update_electric_field():
 			var idx_minus_x = idx - 1
 			var idx_minus_y = idx - GRID_WIDTH
 			
-			ez[idx] = ez[idx] + update_factor * ((hy[idx] - hy[idx_minus_x]) - (hx[idx] - hx[idx_minus_y]))
+			# その場所の比誘電率に応じて更新の大きさを変える
+			var inv_permittivity = 1.0 / permittivity_map[idx]
+			ez[idx] = ez[idx] + (update_factor * inv_permittivity) * ((hy[idx] - hy[idx_minus_x]) - (hx[idx] - hx[idx_minus_y]))
 
 			if obstacle_map[idx] == OBSTACLE_FLAG:
 				ez[idx] = 0.0
