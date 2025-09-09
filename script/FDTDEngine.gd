@@ -98,6 +98,35 @@ func add_obstacle_line(p1: Vector2i, p2: Vector2i):
 			err += dx
 			y1 += sy
 
+func add_medium_line(p1: Vector2i, p2: Vector2i, refractive_index: float):
+	"""
+	指定された2点間に、指定された屈折率を持つ媒質の線を描画します。
+	屈折率(n)と比誘電率(ε_r)の関係は n = sqrt(ε_r) です。
+	"""
+	# 屈折率が1未満の場合は物理的に不自然なため、1.0として扱う
+	var permittivity = pow(max(refractive_index, 1.0), 2)
+
+	var x1 = p1.x
+	var y1 = p1.y
+	var x2 = p2.x
+	var y2 = p2.y
+
+	var dx = abs(x2 - x1)
+	var sx = 1 if x1 < x2 else -1
+	var dy = -abs(y2 - y1)
+	var sy = 1 if y1 < y2 else -1
+	var err = dx + dy
+
+	while true:
+		if x1 >= 0 and x1 < GRID_WIDTH and y1 >= 0 and y1 < GRID_HEIGHT:
+			var idx = y1 * GRID_WIDTH + x1
+			permittivity_map[idx] = permittivity
+
+		if x1 == x2 and y1 == y2: break
+		var e2 = 2 * err
+		if e2 >= dy: err += dy; x1 += sx
+		if e2 <= dx: err += dx; y1 += sy
+
 # --- 描画データ生成 ---
 
 # シェーダーで障害物として描画するための固定値 (0-255)
