@@ -130,24 +130,32 @@ func add_medium_line(p1: Vector2i, p2: Vector2i, refractive_index: float):
 # --- 描画データ生成 ---
 
 # シェーダーで障害物として描画するための固定値 (0-255)
-const OBSTACLE_DRAW_VALUE: int = 128
+const OBSTACLE_DRAW_VALUE: int = 0 # 黒色に対応
+const MEDIUM_DRAW_VALUE: int = 128 # 中間グレーに対応
 
 func get_image_data() -> PackedByteArray:
 	"""
 	現在のシミュレーション状態をテクスチャ用のバイト配列に変換します。
-	- 電場(ez)の値は -1.0..1.0 から 0..255 の範囲にマッピングされます。
-	- 障害物は特別な値 OBSTACLE_DRAW_VALUE (128) としてエンコードされます。
-	- 電場の値がエンコード後に 128 にならないように調整し、障害物との衝突を避けます。
+	- Rチャンネル(1バイト)に複数の情報をエンコードします。
+	- 障害物: OBSTACLE_DRAW_VALUE (0)
+	- 媒質: MEDIUM_DRAW_VALUE (128)
+	- 電場(ez): -1.0..1.0 を 1..127 と 129..255 の範囲にマッピング
 	"""
 	var data = PackedByteArray()
 	data.resize(ez.size())
 	for i in range(ez.size()):
 		if obstacle_map[i] == OBSTACLE_FLAG:
 			data[i] = OBSTACLE_DRAW_VALUE
+		# 媒質は比誘電率が1.0より大きい領域として定義
+		elif permittivity_map[i] > 1.0:
+			data[i] = MEDIUM_DRAW_VALUE
 		else:
 			# ez の値 (-1.0 to 1.0) を 0-255 の範囲にマッピング
 			var val = clampf(ez[i], -1.0, 1.0)
 			var mapped_val = int((val * 0.5 + 0.5) * 255.0)
+			# 予約済みの値と衝突しないように調整
+			if mapped_val == OBSTACLE_DRAW_VALUE:
+				mapped_val += 1
 			if mapped_val == OBSTACLE_DRAW_VALUE:
 				mapped_val += 1 # 128 は障害物用に予約されているため、129にずらす
 			data[i] = clamp(mapped_val, 0, 255)
