@@ -98,34 +98,29 @@ func add_obstacle_line(p1: Vector2i, p2: Vector2i):
 			err += dx
 			y1 += sy
 
-func add_medium_line(p1: Vector2i, p2: Vector2i, refractive_index: float):
+func add_medium_rect(p1: Vector2i, p2: Vector2i, refractive_index: float):
 	"""
-	指定された2点間に、指定された屈折率を持つ媒質の線を描画します。
+	指定された対角線の2点で定義される矩形領域に、指定された屈折率を持つ媒質を設定します。
 	屈折率(n)と比誘電率(ε_r)の関係は n = sqrt(ε_r) です。
 	"""
 	# 屈折率が1未満の場合は物理的に不自然なため、1.0として扱う
 	var permittivity = pow(max(refractive_index, 1.0), 2)
 
-	var x1 = p1.x
-	var y1 = p1.y
-	var x2 = p2.x
-	var y2 = p2.y
+	var x_start = min(p1.x, p2.x)
+	var x_end = max(p1.x, p2.x)
+	var y_start = min(p1.y, p2.y)
+	var y_end = max(p1.y, p2.y)
 
-	var dx = abs(x2 - x1)
-	var sx = 1 if x1 < x2 else -1
-	var dy = -abs(y2 - y1)
-	var sy = 1 if y1 < y2 else -1
-	var err = dx + dy
+	# グリッドの範囲内に収める
+	x_start = max(0, x_start)
+	y_start = max(0, y_start)
+	x_end = min(GRID_WIDTH - 1, x_end)
+	y_end = min(GRID_HEIGHT - 1, y_end)
 
-	while true:
-		if x1 >= 0 and x1 < GRID_WIDTH and y1 >= 0 and y1 < GRID_HEIGHT:
-			var idx = y1 * GRID_WIDTH + x1
+	for y in range(y_start, y_end + 1):
+		for x in range(x_start, x_end + 1):
+			var idx = y * GRID_WIDTH + x
 			permittivity_map[idx] = permittivity
-
-		if x1 == x2 and y1 == y2: break
-		var e2 = 2 * err
-		if e2 >= dy: err += dy; x1 += sx
-		if e2 <= dx: err += dx; y1 += sy
 
 # --- 描画データ生成 ---
 
@@ -137,28 +132,29 @@ func get_image_data() -> PackedByteArray:
 	"""
 	現在のシミュレーション状態をテクスチャ用のバイト配列に変換します。
 	- Rチャンネル(1バイト)に複数の情報をエンコードします。
-	- 障害物: OBSTACLE_DRAW_VALUE (0)
-	- 媒質: MEDIUM_DRAW_VALUE (128)
-	- 電場(ez): -1.0..1.0 を 1..127 と 129..255 の範囲にマッピング
+	- 障害物: OBSTACLE_DRAW_VALUE (0) を設定
+	- 媒質: MEDIUM_DRAW_VALUE (128) を設定
+	- 電場(ez): -1.0..1.0 を 1..127 の範囲にマッピング
+	- 媒質内の電場: 電場の値(1..127)に MEDIUM_DRAW_VALUE(128) を加算 (129..255)
+	シェーダーは、ピクセル値が128以上かどうかで媒質の有無を判断します。
 	"""
 	var data = PackedByteArray()
 	data.resize(ez.size())
 	for i in range(ez.size()):
 		if obstacle_map[i] == OBSTACLE_FLAG:
 			data[i] = OBSTACLE_DRAW_VALUE
-		# 媒質は比誘電率が1.0より大きい領域として定義
-		elif permittivity_map[i] > 1.0:
-			data[i] = MEDIUM_DRAW_VALUE
 		else:
 			# ez の値 (-1.0 to 1.0) を 0-255 の範囲にマッピング
+			# 媒質フラグ用に上位ビットを空けるため、127段階で表現する
 			var val = clampf(ez[i], -1.0, 1.0)
-			var mapped_val = int((val * 0.5 + 0.5) * 255.0)
-			# 予約済みの値と衝突しないように調整
-			if mapped_val == OBSTACLE_DRAW_VALUE:
-				mapped_val += 1
-			if mapped_val == OBSTACLE_DRAW_VALUE:
-				mapped_val += 1 # 128 は障害物用に予約されているため、129にずらす
-			data[i] = clamp(mapped_val, 0, 255)
+			var mapped_val = int((val * 0.5 + 0.5) * 126.0) + 1 # 1-127の範囲に
+
+			# 媒質がある場合は、最上位ビットを立てるのと同じ効果を持つ
+			# MEDIUM_DRAW_VALUE (128) を加算する
+			if permittivity_map[i] > 1.0:
+				mapped_val += MEDIUM_DRAW_VALUE
+
+			data[i] = mapped_val
 	return data
 
 # --- 内部計算ロジック ---

@@ -40,6 +40,7 @@ var hy: PackedFloat32Array:
 var last_mouse_grid_pos: Vector2i = INVALID_GRID_POS # 最後に描画したマウスのグリッド座標
 var _is_drawing_obstacle: bool = false # 障害物を描画中かどうかのフラグ
 var _is_drawing_medium: bool = false   # 媒質を描画中かどうかのフラグ
+var _medium_draw_start_pos: Vector2i = INVALID_GRID_POS # 媒質矩形描画の開始点
 
 
 # ノードがシーンツリーに追加されたときに一度だけ呼び出される初期化関数
@@ -159,21 +160,19 @@ func _handle_medium_input(event: InputEvent):
 			# 媒質描画モードを開始
 			_is_drawing_medium = true
 			var current_pos = get_mouse_grid_pos()
-			if current_pos != INVALID_GRID_POS:
-				# クリックした点に媒質を描画し、開始点として保存
-				engine.add_medium_line(current_pos, current_pos, drawing_refractive_index)
-				last_mouse_grid_pos = current_pos
+			_medium_draw_start_pos = current_pos
 		else:
-			# 媒質描画モードを終了
-			_is_drawing_medium = false
-			last_mouse_grid_pos = INVALID_GRID_POS
+			# 媒質描画モードを終了し、矩形を描画
+			var current_pos = get_mouse_grid_pos()
+			if _is_drawing_medium and _medium_draw_start_pos != INVALID_GRID_POS and current_pos != INVALID_GRID_POS:
+				engine.add_medium_rect(_medium_draw_start_pos, current_pos, drawing_refractive_index)
 
-	# マウスがドラッグされた時の処理 (媒質描画モード中のみ)
+			_is_drawing_medium = false
+			_medium_draw_start_pos = INVALID_GRID_POS
+
+	# 媒質描画中はマウスモーションを無視する
 	if event is InputEventMouseMotion and _is_drawing_medium:
-		var current_pos = get_mouse_grid_pos()
-		if current_pos != INVALID_GRID_POS and current_pos != last_mouse_grid_pos:
-			engine.add_medium_line(last_mouse_grid_pos, current_pos, drawing_refractive_index)
-			last_mouse_grid_pos = current_pos
+		return
 
 func _handle_source_input(event: InputEvent):
 	# 波源追加ロジック (右クリック)

@@ -22,18 +22,28 @@ void fragment() {
 	float raw_value = round(value * 255.0);
 
 	if (raw_value == OBSTACLE_VALUE) {
-		COLOR = OBSTACLE_COLOR; // 障害物を描画
-	} else if (raw_value == MEDIUM_VALUE) {
-		COLOR = MEDIUM_COLOR;   // 媒質を描画
+		COLOR = OBSTACLE_COLOR;
 	} else {
-		// 電場の波を描画
-		// 元の電場の値(-1.0 - 1.0)に復元
+		vec3 final_color = vec3(0.0);
+
+		// 媒質の中かどうかを判定 (値が128以上か)
+		if (raw_value >= MEDIUM_VALUE) {
+			// 媒質の背景色を設定
+			final_color = MEDIUM_COLOR.rgb;
+			// 128を引いて、元の電場の値(1-127)に戻す
+			value = (raw_value - MEDIUM_VALUE) / 127.0;
+		} else {
+			// 真空中の場合、元の値(1-127)を0.0-1.0の範囲に戻す
+			value = raw_value / 127.0;
+		}
+
+		// 電場の値 (-1.0 to 1.0) に復元
 		value = value * 2.0 - 1.0;
 
-		vec3 color = vec3(0.0); // 基本は黒
-		color.r = max(0.0, value) * color_multiplier;   // プラスなら赤（増幅）
-		color.b = max(0.0, -value) * color_multiplier; // マイナスなら青（増幅）
-		COLOR = vec4(color, 1.0);
+		// 波の色を計算し、背景色に加算（ブレンド）する
+		final_color.r += max(0.0, value) * color_multiplier;   // プラスなら赤を加算
+		final_color.b += max(0.0, -value) * color_multiplier; // マイナスなら青を加算
+		COLOR = vec4(final_color, 1.0);
 	}
 }
 
