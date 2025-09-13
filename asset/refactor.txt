@@ -1,76 +1,79 @@
-関心の分離リファクタリング計画
-この計画の目的は、現在一つのスクリプトに混在している「計算ロジック」「可視化（描画）」「ユーザー入力」という3つの大きな関心事を、それぞれ独立したコンポーネントに分割することです。
+リファクタリング実践ガイド：ステップ・バイ・ステップ（手順のみ）
+このガイドは、コードを記述する前の手順書としてお使いください。
 
-1. 新しいコンポーネントの設計
-現在の FDTDSimulator.gd を解体し、以下の3つの役割を持つコンポーネントに再編成します。
+ステップ0: 準備
+まず、作業を始める前に安全な状態を確保します。
 
-コンポーネント名	担当ノード/クラス	役割（責務）
-FDTDEngine	Resource (GDScript)	計算コア。電磁場の計算のみに専念する。描画や入力については一切関知しない。
-SimulationView	TextureRect (Node)	可視化担当。FDTDEngine の計算結果を受け取り、画面に描画することだけに専念する。
-MainController	Node2D (Root Node)	統括・入力担当。全体の流れを制御し、ユーザー入力を受け付けて各コンポーネントに指示を出す司令塔。
-2. 各コンポーネントの詳細な役割
-A) FDTDEngine (計算コア / fdtd_engine.gd)
-このコンポーネントは、シミュレーションの心臓部です。Godotのシーンツリー（ノード）から独立した Resource として作成することで、再利用性が格段に向上します。
+プロジェクトのバックアップ: 現在のプロジェクトをコピーしてバックアップを取るか、Gitで新しいブランチを作成します。
+空のスクリプトファイル作成: Godotエディタのファイルシステムパネルで、以下の3つの新しいGDScriptファイルを作成します。
+fdtd_engine.gd
+simulation_view.gd
+main_controller.gd
+▶ このステップでの確認ポイント:
 
-持つべきもの（責務）:
+ファイルシステムパネルに、3つの新しいスクリプトファイルが存在することを確認します。
+ステップ1: 計算ロジックの分離 (FDTDEngine の作成)
+シミュレーションの計算部分だけを独立させます。
 
-シミュレーションのグリッドサイズ (width, height)。
-電場・磁場のデータ配列 (ez, hx, hy)。
-Step4で導入する物質の特性データ配列 (permittivity_map など)。
-シミュレーション時間 (time)。
-シミュレーションを初期化する機能 (initialize())。
-シミュレーションを1ステップ進める計算ロジック (step())。
-外部から波源を追加するための機能 (add_source())。
-外部から材質を設定するための機能 (set_material())。
-計算結果（電場データなど）を外部に渡すための機能 (get_field_data())。
-持つべきでないもの:
+fdtd_engine.gd の設定:
+このスクリプトが Resource を継承するように設定します。
+ファイルの先頭に class_name FDTDEngine と記述し、クラスとして登録します。
+コードの移動:
+元の FDTDSimulator.gd から、計算にのみ関連する変数（width, height, ez, hx, hy, time など）と関数（initialize の中身、step の中身、add_source）を fdtd_engine.gd にコピー＆ペーストします。
+インターフェースの作成:
+計算結果（電場データ）を外部から取得できるように、get_field_data() という新しい関数を定義します。
+▶ このステップでの確認ポイント:
 
-ノードへの参照 ($TextureRect など)。
-描画に関するコード（ImageやTextureの操作）。
-入力イベントの処理 (_input関数）。
-_process や _physics_process といったGodotのライフサイクル関数。
-B) SimulationView (可視化担当 / simulation_view.gd)
-このコンポーネントは、計算結果をユーザーに見せるための「翻訳者」です。
+fdtd_engine.gd を保存した際に、Godotエディタでエラーが表示されないことを確認します。
+この時点では、まだプロジェクトを実行しても何も起こりません。
+ステップ2: 司令塔のセットアップ (MainController の準備)
+全体の流れを制御する司令塔を準備し、裏側で計算が動くようにします。
 
-持つべきもの（責務）:
+スクリプトの差し替え:
+シーンツリーで、ルートノード（FDTDSimulator という名前のノード）を選択します。
+インスペクタで、アタッチされているスクリプトを FDTDSimulator.gd から main_controller.gd に変更します。
+main_controller.gd の編集:
+_ready 関数内で、ステップ1で作成した FDTDEngine をインスタンス化し、初期化する処理を記述します。
+_process 関数内で、FDTDEngine の step 関数を呼び出す処理を記述します。
+_input 関数内で、マウスクリックを検知し、FDTDEngine の add_source 関数を呼び出す処理を記述します。
+動作確認のため、_ready や _process、_input の中で、処理が実行されたことがわかるようなメッセージをコンソールに出力する処理（print文）を追加します。
+▶ このステップでの確認ポイント:
 
-FDTDEngine への参照（どのエンジンの結果を描画するか知るため）。
-描画用の Image と ImageTexture。
-描画を更新する機能 (update_view())。この中で FDTDEngine からデータを取得し、それをピクセル情報に変換してテクスチャを更新する。
-色付けを行うためのシェーダー。
-持つべきでないもの:
+プロジェクトを実行（F5キー）します。
+Godotの「出力」パネルに、初期化や計算ステップ、クリック時のメッセージが意図通りに表示されることを確認します。
+この時点では画面に変化はありませんが、コンソールの出力で計算が動いていることが確認できれば成功です。
+ステップ3: 描画担当の分離 (SimulationView の作成)
+計算結果を画面に表示する部分を独立させます。
 
-FDTD法の計算ロジック。
-入力イベントの処理。
-シミュレーションの状態（時間や波源の位置など）を直接変更するコード。
-C) MainController (統括・入力担当 / main_controller.gd)
-このコンポーネントは、アプリケーション全体の流れを司る「監督」です。
+スクリプトのアタッチ:
+シーンツリーで、描画に使っている TextureRect ノードを選択します。
+インスペクタで、このノードに simulation_view.gd スクリプトをアタッチします。
+コードの移動:
+元の FDTDSimulator.gd から、描画にのみ関連するコード（Image や ImageTexture の作成、テクスチャの更新処理など）を simulation_view.gd にコピー＆ペーストします。
+関数の整理:
+コピーした描画処理を update_view() という新しい関数の中にまとめます。
+Image や ImageTexture の初期化処理を initialize_view() という新しい関数の中にまとめます。
+▶ このステップでの確認ポイント:
 
-持つべきもの（責務）:
+simulation_view.gd を保存した際に、エラーが表示されないことを確認します。
+この時点ではまだ MainController と連携していないため、実行しても何も変化はありません。
+ステップ4: 全コンポーネントの連携
+司令塔、計算エンジン、描画担当の3つをつなぎ合わせ、全体を完成させます。
 
-FDTDEngine のインスタンス。
-SimulationView ノードへの参照。
-_ready() で、FDTDEngine を生成・初期化し、SimulationView にその参照を渡す。
-_process() または _physics_process() で、フレームごとに以下の指示を出す。
-FDTDEngine に「計算を1ステップ進めなさい」と命令 (engine.step())。
-SimulationView に「最新の状態で画面を更新しなさい」と命令 (view.update_view())。
-_input() で、マウスクリックなどのユーザー入力を受け付ける。
-入力された座標を計算し、FDTDEngine に「この位置に波源を追加しなさい」と命令 (engine.add_source())。
-持つべきでないもの:
+main_controller.gd の最終調整:
+MainController が SimulationView（TextureRect ノード）を認識できるように、@onready を使ってノードへの参照を保持する変数を定義します。
+_ready 関数に、SimulationView の initialize_view() を呼び出し、さらに FDTDEngine の参照を SimulationView に渡す処理を追加します。
+_process 関数に、SimulationView の update_view() を呼び出す処理を追加します。
+ステップ2で追加したデバッグ用の print 文を削除またはコメントアウトします。
+▶ このステップでの確認ポイント:
 
-FDTD法の具体的な計算式。
-ピクセルデータを直接操作するような描画コード。
-3. リファクタリング（移行）手順の計画
-ファイル作成: fdtd_engine.gd, simulation_view.gd, main_controller.gd の3つの空のスクリプトファイルを作成します。
-ロジックの移行:
-現在の FDTDSimulator.gd から、計算に関する部分（配列定義、FDTD更新ループ）を fdtd_engine.gd にコピーし、クラスとして整理します。
-描画に関する部分（Imageの作成、set_data、texture.update）を simulation_view.gd にコピーし、update_view() メソッドにまとめます。
-入力処理 (_input関数) と _process 関数の骨格を main_controller.gd にコピーします。
-ノードとスクリプトの再設定:
-Godotエディタで、ルートノードのスクリプトを main_controller.gd に変更します。
-TextureRect ノードのスクリプトを simulation_view.gd に変更します。
-連携処理の実装:
-main_controller.gd の _ready で FDTDEngine をインスタンス化し、SimulationView に渡すコードを記述します。
-main_controller.gd の _process と _input を修正し、各コンポーネントのメソッドを呼び出す形に書き換えます。
-クリーンアップ: 古い FDTDSimulator.gd をプロジェクトから削除します。
-この計画に沿って構造を変更することで、各部分が独立して機能するため、例えば「クリックだけでなくドラッグでも波源を置きたい」という変更は MainController だけを修正すればよくなり、「カラーマップを別の種類に変えたい」という変更は SimulationView のシェーダーだけを修正すれば済むようになります。これにより、プロジェクトが大規模になっても、見通しが良く、変更に強い構造を維持できます。
+プロジェクトを実行（F5キー）します。
+以前のアプリケーションと全く同じように、画面をクリックすると波紋が広がる様子が描画されることを確認します。
+これが確認できれば、リファクタリングは成功です。
+ステップ5: クリーンアップ
+最後にプロジェクトを整理します。
+
+古いファイルの削除:
+すべてが正常に動作することを確認したら、ファイルシステムパネルから不要になった FDTDSimulator.gd ファイルを削除します。
+コードの整理:
+各スクリプトに残っている不要なコメントやデバッグ用のコードを整理します。
