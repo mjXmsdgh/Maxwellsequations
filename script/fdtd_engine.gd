@@ -1,8 +1,8 @@
 # fdtd_engine.gd
 # シミュレーションの計算ロジックを担当するクラス
 # Resourceを継承することで、シーンに依存せずデータとして扱えるようになります。
-class_name FDTDEngine
 extends Resource
+class_name FDTDEngine
 
 # --- 定数 ---
 const GRID_WIDTH = 512

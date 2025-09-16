@@ -15,29 +15,36 @@ extends Node2D
 # 非常に短いベクトルを描画しないための閾値 (長さの2乗)
 const MIN_VECTOR_LENGTH_SQ = 1e-9
 
-# FDTDSimulatorノードと、その中のTextureRectへの参照
-# @onready を使うことで、シーンの準備完了時に一度だけノードを取得します
-@onready var simulator: FDTDSimulator = get_parent()
-@onready var texture_rect: TextureRect = simulator.get_node_or_null("TextureRect")
+# --- 依存コンポーネント ---
+# 司令塔(MainController)から設定される
+@export var engine: FDTDEngine
+@export var texture_rect: TextureRect
 
 # 描画する点の情報を事前に計算して格納する配列
 var _draw_points_info: Array[Dictionary] = []
+var _is_initialized: bool = false
 
 
 func _ready():
-	# 親ノードがFDTDSimulatorであることを確認
-	if not simulator is FDTDSimulator:
-		push_error("MagneticFieldVisualizer requires a FDTDSimulator node as its parent.")
-		set_process(false)
-		return
+	# MainControllerがinitialize()を呼び出すのを待つため、
+	# 初期化が完了するまでプロセスを無効化しておく。
+	set_process(false)
 
+
+func initialize():
+	"""司令塔(MainController)によって依存性が注入された後に呼び出される初期化関数。"""
+	# 必要なコンポーネントが設定されているか確認
+	if not is_instance_valid(engine):
+		push_error("FDTDEngine is not assigned to MagneticFieldVisualizer.")
+		return
 	if not is_instance_valid(texture_rect):
 		push_error("Could not find TextureRect node in the parent simulator.")
-		set_process(false)
 		return
 
 	# 描画する点の情報を事前計算する
 	_precalculate_draw_points()
+	_is_initialized = true
+	set_process(true) # 初期化が完了したので、プロセスを開始する
 
 func _process(_delta):
 	# 毎フレーム再描画を要求する
@@ -50,8 +57,8 @@ func _precalculate_draw_points():
 	_draw_points_info 配列に格納する。_ready() で一度だけ呼び出す。
 	"""
 	_draw_points_info.clear()
-	var grid_width: int = simulator.grid_width
-	var grid_height: int = simulator.grid_height
+	var grid_width: int = engine.GRID_WIDTH
+	var grid_height: int = engine.GRID_HEIGHT
 	if grid_width == 0 or grid_height == 0:
 		return
 
@@ -64,8 +71,8 @@ func _precalculate_draw_points():
 func _prepare_vectors_to_draw() -> Array[Dictionary]:
 	"""シミュレーションデータから描画すべきベクトルのリストを作成して返す。"""
 	# シミュレータから必要な情報を取得
-	var hx: PackedFloat32Array = simulator.hx
-	var hy: PackedFloat32Array = simulator.hy
+	var hx: PackedFloat32Array = engine.hx
+	var hy: PackedFloat32Array = engine.hy
 	if hx.is_empty() or hy.is_empty():
 		return []
 	
@@ -73,8 +80,8 @@ func _prepare_vectors_to_draw() -> Array[Dictionary]:
 	if _draw_points_info.is_empty():
 		return []
 
-	var grid_width: int = simulator.grid_width
-	var grid_height: int = simulator.grid_height
+	var grid_width: int = engine.GRID_WIDTH
+	var grid_height: int = engine.GRID_HEIGHT
 	var rect_size: Vector2 = texture_rect.size
 
 	# グリッド座標から描画座標への変換スケール
@@ -137,8 +144,8 @@ func _draw_single_vector(start_pos: Vector2, end_pos: Vector2, color: Color):
 	draw_line(end_pos, p2, color, 1.0, true) # antialiased = true
 
 func _draw():
-	# simulatorが準備できているか確認
-	if not is_instance_valid(simulator):
+	# 初期化が完了しているか、engineが有効かを確認
+	if not _is_initialized or not is_instance_valid(engine):
 		return
 
 	# ステップ1: 描画するベクトルのデータを準備する
