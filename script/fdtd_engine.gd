@@ -62,7 +62,7 @@ func step(_delta):
 			var idx = y * GRID_WIDTH + x
 			# 障害物(1)でなければ更新
 			if obstacle[idx] == 0:
-				hx[idx] += (ez[idx + GRID_WIDTH] - ez[idx]) * h_update_factor
+				hx[idx] -= (ez[idx + GRID_WIDTH] - ez[idx]) * h_update_factor
 
 	# Hyの更新: x方向の差分を取るため、xのループ範囲を1つ狭める
 	for y in range(GRID_HEIGHT):
@@ -81,7 +81,7 @@ func step(_delta):
 			# 障害物(1)でなければ更新
 			if obstacle[idx] == 0:
 				var curl_h = (hy[idx] - hy[idx - 1]) - (hx[idx] - hx[idx - GRID_WIDTH])
-				ez[idx] = cb[idx] * ez[idx] + ca[idx] * curl_h * e_update_factor
+				ez[idx] += ca[idx] * curl_h * e_update_factor
 
 
 # シミュレーションをリセットする
@@ -96,7 +96,7 @@ func add_source(x: int, y: int, value: float):
 	if x > 0 and x < GRID_WIDTH and y > 0 and y < GRID_HEIGHT:
 		var idx = y * GRID_WIDTH + x
 		if obstacle[idx] == 0:
-			ez[idx] += value
+			ez[idx] = value
 
 
 # 2点間に障害物の線を描画する (ブレゼンハムのアルゴリズム)

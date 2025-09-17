@@ -40,14 +40,14 @@ func _physics_process(delta):
 	# 1. 毎フレーム、計算を1ステップ進めるようエンジンに命令する
 	engine.step(delta)
 	
-	# --- デバッグ用: 計算結果の発散をチェック ---
-	# PackedFloat32Arrayにはmin()/max()がないため、手動で値を探します。
-	var min_val = INF
-	var max_val = -INF
-	for val in engine.ez:
-		min_val = min(min_val, val)
-		max_val = max(max_val, val)
-	print("Ez min: ", min_val, ", Ez max: ", max_val)
+	# # --- デバッグ用: 計算結果の発散をチェック ---
+	# # PackedFloat32Arrayにはmin()/max()がないため、手動で値を探します。
+	# var min_val = INF
+	# var max_val = -INF
+	# for val in engine.ez:
+	# 	min_val = min(min_val, val)
+	# 	max_val = max(max_val, val)
+	# print("Ez min: ", min_val, ", Ez max: ", max_val)
 
 	# 2. 動作確認用（毎フレーム出力されるので、確認後はコメントアウト推奨）
 	# print("MainController: Physics Processing frame...")
