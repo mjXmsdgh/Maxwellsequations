@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://cl1fbmcan1wyi"]
+[gd_scene load_steps=6 format=3 uid="uid://cl1fbmcan1wyi"]
 
 [ext_resource type="Script" path="res://script/main_controller.gd" id="1_wigks"]
 [ext_resource type="Shader" path="res://shader/main.gdshader" id="2_8c0rk"]
+[ext_resource type="Script" path="res://script/simulation_view.gd" id="3_6rypr"]
 [ext_resource type="Script" path="res://script/MagneticFieldVisualizer.gd" id="3_bhnu6"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_gyb72"]
@@ -26,6 +27,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("3_6rypr")
 
 [node name="MagneticFieldVisualizer" type="Node2D" parent="."]
 script = ExtResource("3_bhnu6")

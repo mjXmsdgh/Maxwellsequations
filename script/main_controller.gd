@@ -17,6 +17,9 @@ func _ready():
 	# 2. 作成したエンジンの初期化処理を呼び出す
 	engine.initialize()
 	
+	# SimulationView (TextureRectにアタッチされている) の初期化
+	texture_rect.initialize_view(engine)
+
 	# 3. MagneticFieldVisualizerに必要な依存関係（エンジンと描画領域）を注入する
 	if is_instance_valid(magnetic_visualizer):
 		magnetic_visualizer.engine = engine
@@ -25,6 +28,12 @@ func _ready():
 	
 	# 4. 動作確認のため、コンソールにメッセージを出力する
 	print("MainController: Ready! FDTD Engine initialized.")
+
+
+# 毎フレーム呼ばれる（描画更新に適している）
+func _process(delta):
+	# 描画担当（SimulationView）に、ビューの更新を指示する
+	texture_rect.update_view()
 
 # 固定フレームレートで呼ばれる（物理計算に適している）
 func _physics_process(delta):
@@ -54,9 +63,9 @@ func get_mouse_grid_pos() -> Vector2i:
 # 何か入力があったときに呼ばれる
 func _input(event):
 	# 1. 入力が「マウスボタンのクリック」かどうかを判定する
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var grid_pos = get_mouse_grid_pos()
 		if grid_pos != FDTDSimulator.INVALID_GRID_POS:
-			# 2. もし右クリックなら、そのグリッド座標に波源を追加するようエンジンに命令する
+			# 2. もし左クリックなら、そのグリッド座標に波源を追加するようエンジンに命令する
 			engine.add_source(grid_pos.x, grid_pos.y, 5.0) # 強さは仮に5.0
 			print("MainController: Source added at grid position ", grid_pos)

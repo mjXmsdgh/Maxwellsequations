@@ -156,3 +156,8 @@ func get_image_data() -> PackedByteArray:
 			pixels[i] = pixel_value
 
 	return pixels
+
+# 計算結果（電場データ）を外部から取得するためのインターフェース関数
+func get_field_data() -> PackedFloat32Array:
+	# 生の電場データをそのまま返す
+	return ez
