@@ -1,7 +1,7 @@
 # fdtd_engine.gd
 # シミュレーションの計算ロジックを担当するクラス
 # Resourceを継承することで、シーンに依存せずデータとして扱えるようになります。
-extends Resource
+extends Resource # RefCountedを継承しているため、メモリ管理上有利です
 class_name FDTDEngine
 
 # --- 定数 ---
@@ -11,6 +11,7 @@ const OBSTACLE_PIXEL_VALUE = 128 # 障害物を表すピクセル値 (0-255の�
 
 # --- 物理パラメータ ---
 const IMP0 = 377.0 # 真空のインピーダンス
+const COURANT_NUMBER = 0.5 # FDTD法の安定性を保つための係数 (クーラン数)
 
 # --- シミュレーション用データ配列 ---
 var ez: PackedFloat32Array # Z方向の電場
@@ -28,11 +29,17 @@ var obstacle: PackedByteArray
 # 初期化関数
 func initialize():
 	# 各配列のサイズを確保し、0またはデフォルト値で初期化
-	ez.resize(GRID_WIDTH * GRID_HEIGHT)
-	hx.resize(GRID_WIDTH * GRID_HEIGHT)
-	hy.resize(GRID_WIDTH * GRID_HEIGHT)
-	ca.resize(GRID_WIDTH * GRID_HEIGHT)
-	cb.resize(GRID_WIDTH * GRID_HEIGHT)
+
+	var size = GRID_WIDTH * GRID_HEIGHT
+	ez.resize(size)
+	ez.fill(0.0)
+	hx.resize(size)
+	hx.fill(0.0)
+	hy.resize(size)
+	hy.fill(0.0)
+	ca.resize(size)
+	cb.resize(size)
+
 	obstacle.resize(GRID_WIDTH * GRID_HEIGHT)
 
 	# 媒質係数を真空のデフォルト値で埋める
@@ -47,24 +54,34 @@ func initialize():
 # シミュレーションを1ステップ進める
 func step(_delta):
 	# --- ステップA: 磁場の更新 (H-field update) ---
-	# 現在の電場(ez)から、次の半ステップの磁場(hx, hy)を計算
+	var h_update_factor = COURANT_NUMBER / IMP0
+
+	# Hxの更新: y方向の差分を取るため、yのループ範囲を1つ狭める
 	for y in range(GRID_HEIGHT - 1):
+		for x in range(GRID_WIDTH):
+			var idx = y * GRID_WIDTH + x
+			# 障害物(1)でなければ更新
+			if obstacle[idx] == 0:
+				hx[idx] += (ez[idx + GRID_WIDTH] - ez[idx]) * h_update_factor
+
+	# Hyの更新: x方向の差分を取るため、xのループ範囲を1つ狭める
+	for y in range(GRID_HEIGHT):
 		for x in range(GRID_WIDTH - 1):
 			var idx = y * GRID_WIDTH + x
 			# 障害物(1)でなければ更新
 			if obstacle[idx] == 0:
-				hx[idx] += (ez[idx + GRID_WIDTH] - ez[idx]) / IMP0
-				hy[idx] += (ez[idx + 1] - ez[idx]) / IMP0
+				hy[idx] += (ez[idx + 1] - ez[idx]) * h_update_factor
 
 	# --- ステップB: 電場の更新 (E-field update) ---
 	# 更新された磁場(hx, hy)から、次の半ステップの電場(ez)を計算
+	var e_update_factor = COURANT_NUMBER * IMP0
 	for y in range(1, GRID_HEIGHT):
 		for x in range(1, GRID_WIDTH):
 			var idx = y * GRID_WIDTH + x
 			# 障害物(1)でなければ更新
 			if obstacle[idx] == 0:
 				var curl_h = (hy[idx] - hy[idx - 1]) - (hx[idx] - hx[idx - GRID_WIDTH])
-				ez[idx] = cb[idx] * ez[idx] + ca[idx] * curl_h * IMP0
+				ez[idx] = cb[idx] * ez[idx] + ca[idx] * curl_h * e_update_factor
 
 
 # シミュレーションをリセットする

@@ -17,8 +17,8 @@ const MIN_VECTOR_LENGTH_SQ = 1e-9
 
 # --- 依存コンポーネント ---
 # 司令塔(MainController)から設定される
-@export var engine: FDTDEngine
-@export var texture_rect: TextureRect
+var engine: FDTDEngine
+var texture_rect: TextureRect
 
 # 描画する点の情報を事前に計算して格納する配列
 var _draw_points_info: Array[Dictionary] = []
