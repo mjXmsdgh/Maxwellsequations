@@ -39,7 +39,15 @@ func _process(delta):
 func _physics_process(delta):
 	# 1. 毎フレーム、計算を1ステップ進めるようエンジンに命令する
 	engine.step(delta)
-	
+
+	# 2. マウスの左ボタンが「押されている」状態かを毎フレームチェックする
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		var grid_pos = get_mouse_grid_pos()
+		if grid_pos != FDTDSimulator.INVALID_GRID_POS:
+			# グリッド座標に波源を追加するようエンジンに命令する
+			engine.add_source(grid_pos.x, grid_pos.y, 5.0) # 強さは仮に5.0
+			# print("Source added at grid position ", grid_pos) # 毎フレーム出力されるためコメントアウト推奨
+
 	# # --- デバッグ用: 計算結果の発散をチェック ---
 	# # PackedFloat32Arrayにはmin()/max()がないため、手動で値を探します。
 	# var min_val = INF
@@ -48,9 +56,6 @@ func _physics_process(delta):
 	# 	min_val = min(min_val, val)
 	# 	max_val = max(max_val, val)
 	# print("Ez min: ", min_val, ", Ez max: ", max_val)
-
-	# 2. 動作確認用（毎フレーム出力されるので、確認後はコメントアウト推奨）
-	# print("MainController: Physics Processing frame...")
 
 # マウスのグローバル座標をグリッド座標に変換するヘルパー関数
 func get_mouse_grid_pos() -> Vector2i:
@@ -71,15 +76,7 @@ func get_mouse_grid_pos() -> Vector2i:
 
 # 何か入力があったときに呼ばれる
 func _input(event):
-	# 1. 入力が「マウスボタンのクリック」かどうかを判定する
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var grid_pos = get_mouse_grid_pos()
-		if grid_pos != FDTDSimulator.INVALID_GRID_POS:
-			# 2. もし左クリックなら、そのグリッド座標に波源を追加するようエンジンに命令する
-			engine.add_source(grid_pos.x, grid_pos.y, 5.0) # 強さは仮に5.0
-			print("MainController: Source added at grid position ", grid_pos)
-
-	# 3. Rキーが押されたらリセット処理を呼び出す
+	# Rキーによるリセット処理はイベントベースのまま残す
 	if event is InputEventKey and event.pressed and not event.is_echo():
 		if event.keycode == KEY_R:
 			engine.reset()
