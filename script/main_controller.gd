@@ -78,3 +78,9 @@ func _input(event):
 			# 2. もし左クリックなら、そのグリッド座標に波源を追加するようエンジンに命令する
 			engine.add_source(grid_pos.x, grid_pos.y, 5.0) # 強さは仮に5.0
 			print("MainController: Source added at grid position ", grid_pos)
+
+	# 3. Rキーが押されたらリセット処理を呼び出す
+	if event is InputEventKey and event.pressed and not event.is_echo():
+		if event.keycode == KEY_R:
+			engine.reset()
+			print("MainController: Simulation reset.")

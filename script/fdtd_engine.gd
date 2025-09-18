@@ -14,16 +14,16 @@ const IMP0 = 377.0 # 真空のインピーダンス
 const COURANT_NUMBER = 0.5 # FDTD法の安定性を保つための係数 (クーラン数)
 
 # --- シミュレーション用データ配列 ---
-var ez: PackedFloat32Array # Z方向の電場
-var hx: PackedFloat32Array # X方向の磁場
-var hy: PackedFloat32Array # Y方向の磁場
+var ez: PackedFloat32Array = PackedFloat32Array() # Z方向の電場
+var hx: PackedFloat32Array = PackedFloat32Array() # X方向の磁場
+var hy: PackedFloat32Array = PackedFloat32Array() # Y方向の磁場
 
 # 媒質の特性を格納する配列
-var ca: PackedFloat32Array # 電場更新係数 (Epsilon依存)
-var cb: PackedFloat32Array # 電場更新係数 (Sigma依存)
+var ca: PackedFloat32Array = PackedFloat32Array() # 電場更新係数 (Epsilon依存)
+var cb: PackedFloat32Array = PackedFloat32Array() # 電場更新係数 (Sigma依存)
 
 # 障害物情報を格納する配列 (1なら障害物, 0なら何もない)
-var obstacle: PackedByteArray
+var obstacle: PackedByteArray = PackedByteArray()
 
 
 # 初期化関数
