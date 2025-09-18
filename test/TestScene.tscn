@@ -1,6 +1,3 @@
-[gd_scene load_steps=2 format=3 uid="uid://xgsrn7epfb5j"]
-
-[ext_resource type="Script" path="res://test/test_magnetic_field.gd" id="1_gla1d"]
+[gd_scene format=3 uid="uid://5cbwgga7hjf4"]
 
 [node name="TestScene" type="Node2D"]
-script = ExtResource("1_gla1d")
