@@ -127,70 +127,71 @@ func get_mouse_grid_pos() -> Vector2i:
 
 # --- 入力処理 ---
 
-func _handle_obstacle_input(event: InputEvent):
-	# マウスの左ボタンが押された/離された時の処理
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.is_pressed():
-			# 描画モードを開始
-			_is_drawing_obstacle = true
-			var current_pos = get_mouse_grid_pos()
-			if current_pos != INVALID_GRID_POS:
-				# クリックした点に障害物を描画し、開始点として保存
-				engine.add_obstacle_line(current_pos, current_pos)
-				last_mouse_grid_pos = current_pos
-		else:
-			# 描画モードを終了
-			_is_drawing_obstacle = false
-			last_mouse_grid_pos = INVALID_GRID_POS
-
-	# マウスがドラッグされた時の処理 (描画モード中のみ)
-	if event is InputEventMouseMotion and _is_drawing_obstacle:
-		var current_pos = get_mouse_grid_pos()
-		# マウスが新しいグリッドに移動した場合
-		if current_pos != INVALID_GRID_POS and current_pos != last_mouse_grid_pos:
-			# 前回の位置から現在の位置まで線を描画
-			engine.add_obstacle_line(last_mouse_grid_pos, current_pos)
-			# 現在位置を更新
-			last_mouse_grid_pos = current_pos
-
-func _handle_medium_input(event: InputEvent):
-	# マウスの左ボタンが押された/離された時の処理
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.is_pressed():
-			# 媒質描画モードを開始
-			_is_drawing_medium = true
-			var current_pos = get_mouse_grid_pos()
-			_medium_draw_start_pos = current_pos
-		else:
-			# 媒質描画モードを終了し、矩形を描画
-			var current_pos = get_mouse_grid_pos()
-			if _is_drawing_medium and _medium_draw_start_pos != INVALID_GRID_POS and current_pos != INVALID_GRID_POS:
-				engine.add_medium_rect(_medium_draw_start_pos, current_pos, drawing_refractive_index)
-
-			_is_drawing_medium = false
-			_medium_draw_start_pos = INVALID_GRID_POS
-
-	# 媒質描画中はマウスモーションを無視する
-	if event is InputEventMouseMotion and _is_drawing_medium:
-		return
-
+# 波源の追加を処理する (右クリック)
 func _handle_source_input(event: InputEvent):
-	# 波源追加ロジック (右クリック)
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
 		var grid_pos = get_mouse_grid_pos()
 		if grid_pos != INVALID_GRID_POS:
 			engine.add_source(grid_pos.x, grid_pos.y, click_strength)
 
+# Godotからの入力を受け取るメイン関数
+# 入力の種類(マウスボタン、マウス移動、キー)に応じて、それぞれの処理関数を呼び出す
 func _input(event: InputEvent):
-	# Shiftキーの状態で障害物描画と媒質描画を切り替える
-	if event.is_shift_pressed():
-		_handle_medium_input(event)
-	else:
-		_handle_obstacle_input(event)
-
-	# 波源追加の入力（右クリック）はShiftキーの状態に影響されない
-	_handle_source_input(event)
-
-	# 'R'キーが押されたらシミュレーションをリセット
-	if event is InputEventKey and event.is_pressed() and event.keycode == KEY_R:
+	if event is InputEventMouseButton:
+		_handle_mouse_button(event)
+	elif event is InputEventMouseMotion:
+		_handle_mouse_motion(event)
+	elif event is InputEventKey and event.is_pressed() and event.keycode == KEY_R:
+		# 'R'キーが押されたらシミュレーションをリセット
 		reset_simulation()
+
+# マウスボタンのクリックイベントを処理する
+# どのボタンが押されたかに応じて、さらに処理を振り分ける
+func _handle_mouse_button(event: InputEventMouseButton):
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		# 左クリックの場合、Shiftキーの状態で障害物描画と媒質描画を切り替える
+		if event.is_shift_pressed():
+			_handle_medium_drawing_button(event)
+		else:
+			_handle_obstacle_drawing_button(event)
+	elif event.button_index == MOUSE_BUTTON_RIGHT and event.is_pressed():
+		# 右クリックの場合、波源を追加する
+		_handle_source_input(event)
+
+# マウスの移動イベントを処理する
+# 障害物描画モード中に、ドラッグで線を描くために使用
+func _handle_mouse_motion(event: InputEventMouseMotion):
+	if _is_drawing_obstacle:
+		var current_pos = get_mouse_grid_pos()
+		if current_pos != INVALID_GRID_POS and current_pos != last_mouse_grid_pos:
+			engine.add_obstacle_line(last_mouse_grid_pos, current_pos)
+			last_mouse_grid_pos = current_pos
+
+# 障害物描画のためのマウスボタン処理 (左クリック)
+func _handle_obstacle_drawing_button(event: InputEventMouseButton):
+	if event.is_pressed():
+		# ボタンが押されたら、描画モードを開始
+		_is_drawing_obstacle = true
+		var current_pos = get_mouse_grid_pos()
+		if current_pos != INVALID_GRID_POS:
+			engine.add_obstacle_line(current_pos, current_pos)
+			last_mouse_grid_pos = current_pos
+	else:
+		# ボタンが離されたら、描画モードを終了
+		_is_drawing_obstacle = false
+		last_mouse_grid_pos = INVALID_GRID_POS
+
+# 媒質描画のためのマウスボタン処理 (Shift + 左クリック)
+func _handle_medium_drawing_button(event: InputEventMouseButton):
+	if event.is_pressed():
+		# ボタンが押されたら、媒質描画モードを開始し、開始点を記録
+		_is_drawing_medium = true
+		_medium_draw_start_pos = get_mouse_grid_pos()
+	else:
+		# ボタンが離されたら、開始点から現在のカーソル位置までの矩形を描画
+		var current_pos = get_mouse_grid_pos()
+		if _is_drawing_medium and _medium_draw_start_pos != INVALID_GRID_POS and current_pos != INVALID_GRID_POS:
+			engine.add_medium_rect(_medium_draw_start_pos, current_pos, drawing_refractive_index)
+		# 描画モードを終了
+		_is_drawing_medium = false
+		_medium_draw_start_pos = INVALID_GRID_POS
