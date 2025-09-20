@@ -17,7 +17,7 @@ func initialize_view(p_engine: FDTDEngine):
 	
 	# 2. 描画用のImageとImageTextureを作成
 	# エンジンのグリッドサイズに合わせて作成する
-	image = Image.create(engine.GRID_WIDTH, engine.GRID_HEIGHT, false, Image.FORMAT_L8)
+	image = Image.create(engine.GRID_WIDTH, engine.GRID_HEIGHT, false, Image.FORMAT_RGBA8)
 	_image_texture = ImageTexture.create_from_image(image)
 	
 	# 3. このノード（TextureRect）にテクスチャを設定
@@ -26,23 +26,29 @@ func initialize_view(p_engine: FDTDEngine):
 	# 4. ピクセルデータを保持する配列をリサイズしておく
 	pixels.resize(engine.GRID_WIDTH * engine.GRID_HEIGHT)
 
-# 毎フレーム呼ばれる描画更新処理
-# MainControllerから呼ばれる
+
 func update_view():
-	# エンジンがまだ設定されていなければ何もしない
 	if not is_instance_valid(engine):
 		return
+
+	var image_data = image.get_data()
+	var ez = engine.ez
+	var medium_coeffs = engine.ca # 媒質情報を保持する配列(ca)を取得
+
+	for i in range(ez.size()):
+		var ptr = i * 4
 		
-	# 1. エンジンから最新の電場データを取得
-	var ez_data: PackedFloat32Array = engine.get_field_data()
-	
-	# 2. 電場データ（-1.0 ~ 1.0）をピクセルデータ（0 ~ 255）に変換
-	for i in range(ez_data.size()):
-		var value = clampf(ez_data[i], -1.0, 1.0) # 値を-1.0から1.0の範囲に制限
-		pixels[i] = int((value + 1.0) * 0.5 * 255.0) # 0から255の範囲にマッピング
+		# Redチャンネル: 電場Ezの情報を書き込む
+		var ez_val = (ez[i] * 0.5 + 0.5) # -1..1 -> 0..1
+		image_data[ptr] = int(ez_val * 255.0)
 		
-	# 3. Imageオブジェクトにピクセルデータを一括で設定
-	image.set_data(engine.GRID_WIDTH, engine.GRID_HEIGHT, false, Image.FORMAT_L8, pixels)
-	
-	# 4. ImageTextureを更新して、画面に反映
-	_image_texture.update(image)
+		# Greenチャンネル: 媒質係数(ca)の情報を書き込む (ca = 1.0 / n^2)
+		var medium_val = medium_coeffs[i] # 1.0(真空) or < 1.0(媒質)
+		image_data[ptr + 1] = int(medium_val * 255.0)
+		
+		# Blue/Alphaチャンネルは未使用
+		image_data[ptr + 2] = 0
+		image_data[ptr + 3] = 255
+
+	image.set_data(image.get_width(), image.get_height(), false, image.get_format(), image_data)
+	texture.update(image)

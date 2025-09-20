@@ -8,6 +8,7 @@
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_gyb72"]
 shader = ExtResource("2_8c0rk")
 shader_parameter/color_multiplier = 16.706
+shader_parameter/medium_tint = Color(0.15, 0.2, 0.15, 1)
 
 [node name="FDTDSimulator" type="Control"]
 texture_filter = 1
